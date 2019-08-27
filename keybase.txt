@@ -1,0 +1,56 @@
+==================================================================
+https://keybase.io/eouweneel
+--------------------------------------------------------------------
+
+I hereby claim:
+
+  * I am an admin of http://www.ouweneel.me
+  * I am eouweneel (https://keybase.io/eouweneel) on keybase.
+  * I have a public key ASAxyvcgzjTx31dbAfkW9Os8BuGmj8kVuxJg6lhEsVxmdQo
+
+To do so, I am signing this object:
+
+{
+  "body": {
+    "key": {
+      "eldest_kid": "01018d6586a9b9ad62e228cad826c515e223c21cd5dea9dab3ec4ce27d65593a78dd0a",
+      "host": "keybase.io",
+      "kid": "012031caf720ce34f1df575b01f916f4eb3c06e1a68fc915bb1260ea5844b15c66750a",
+      "uid": "108e334945bfd0641c37a9c799edd219",
+      "username": "eouweneel"
+    },
+    "merkle_root": {
+      "ctime": 1548453605,
+      "hash": "efade6d30e3e1828cfdc086d58775e543adeb90c58ddbb9a1a52c082f428fcfde2c2dea7b01e279354caffcc807941e6436063b6bd0be55c861fca673f5daf01",
+      "hash_meta": "4e5b5ae79db6174534ac5825da55db79e8c17b2f8b80d903e2ce6a3b90e21b4f",
+      "seqno": 4621974
+    },
+    "service": {
+      "entropy": "oa+xHczCUCkeYDdioHyMbpRq",
+      "hostname": "www.ouweneel.me",
+      "protocol": "http:"
+    },
+    "type": "web_service_binding",
+    "version": 2
+  },
+  "client": {
+    "name": "keybase.io go client",
+    "version": "2.13.1"
+  },
+  "ctime": 1548453633,
+  "expire_in": 504576000,
+  "prev": "98de4b92694ab9585d2b9f96c839345c30ccf9da59bb630adb8cbfb727b73237",
+  "seqno": 30,
+  "tag": "signature"
+}
+
+which yields the signature:
+
+hKRib2R5hqhkZXRhY2hlZMOpaGFzaF90eXBlCqNrZXnEIwEgMcr3IM408d9XWwH5FvTrPAbhpo/JFbsSYOpYRLFcZnUKp3BheWxvYWTESpcCHsQgmN5LkmlKuVhdK5+WyDk0XDDM+dpZu2MK24y/tye3MjfEIB1nctintyCzV0NZBm1C3c2/TlEXXSO+nh9bZhB1aZf5AgHCo3NpZ8RANNDKUhRV4jZbIKScFCL9I/mnvMD783pJNCYtLksqvfJMsUHAN3BiN7acmHIqaQO/hAHlRr51cdNyg++M2/U5BahzaWdfdHlwZSCkaGFzaIKkdHlwZQildmFsdWXEIFKqdzwZbZ4eTjG78CtakTDLsKbNPWwbtzqaJLuY/p6go3RhZ80CAqd2ZXJzaW9uAQ==
+
+And finally, I am proving ownership of this host by posting or
+appending to this document.
+
+View my publicly-auditable identity here: https://keybase.io/eouweneel
+
+==================================================================
