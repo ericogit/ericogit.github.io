@@ -14,7 +14,7 @@ function pasteLock(){
 
     suspendFindLock = true;															//allow writing a name without searching
 
-    if (lockstripped.replace(/\s/g,'').length == 43 || lockstripped.replace(/\s/g,'').length == 50 || lockstripped.trim().split(/[ _]/).length == 20){
+    if (lockstripped.replace(/\s/g,'').length == 4182){
         lockMsg.textContent = 'Lock detected';
         lockBox.textContent = lockstripped;
         extractLock(lockstripped)
@@ -25,7 +25,7 @@ function pasteLock(){
 //get name and Lock from form and merge them with the locDir object, then store
 function addLock(fromMain){
     if(!fullAccess){
-        lockMsg.textContent = 'Save not available in Guest mode\r\nPlease restart PassLok';
+        lockMsg.textContent = 'Save not available in Guest mode\r\nPlease restart KyberLock';
         return
     }
     if(learnMode.checked){
@@ -33,25 +33,23 @@ function addLock(fromMain){
         if(!reply) return
     }
     callKey = 'addlock';
-    var	lock = lockBox.innerHTML.replace(/\n/g,'<br>').replace(/<br>$/i,"").trim().replace(/<div>/gi,'<br>').replace(/<\/div>/gi,'').trim(),
-        lockarray = lock.split('<br>'),
-        isList = (lockarray.length > 1 && lockarray[1].slice(0,4) != 'http' && lock.length <= 500);			//identify List
+    var	lock = lockBox.innerHTML.replace(/\n/g,'<br>').replace(/<br>$/i,"").trim().replace(/<div>/gi,'<br>').replace(/<\/div>/gi,'').trim();
 
-    if (lock == ''){																//if box is empty, put a random string there
-        if(!locDir['myself'] || BasicButtons) return;									//don't do it in Basic mode
-        lock = uint8ArrayToBase64(nacl.randomBytes(31)).replace(/=+$/,'');			//a little shorter so it's distinct from  a Lock
+    var lockarray = lock.split('<br>'),
+        isList = (lockarray.length > 1 && !lock.includes('http') && lock.length <= 500);			//identify List
+
+    if (lock == ''){											//if box is empty, put a 50-character random base36 string there
+        if(!locDir['myself']) return;									//don't do it while initializing things
+        lock = changeBase(encodeBase64(crypto.getRandomValues(new Uint8Array(32))).replace(/=+$/,''),base64,base36);
         lockBox.textContent = lock;
         addLockBtn.textContent = "Save";
         return
 
-    }else{																			//if populated, encrypt if not a Lock, then prompt for a name and save
-        var locklength = stripTags(lockarray[0]).length;
-        if((locklength == 43 || locklength == 50) && lockarray.length == 1){
-            var lockcrypt = lock													//store Locks unencrypted, everything else encrypted by the Key
-        }else if(lockarray[0].trim().split(/[ _]/).length == 20){				//word Lock case
-            var lockcrypt = changeBase(lock, wordListExp, base64, true);
-            if(!lockcrypt) return;
-            lockBox.textContent = lockcrypt
+    }else{
+        //if populated, encrypt if not a Lock, then prompt for a name and save
+        var locklength = stripTags(lock).length;
+        if(locklength == 4182){
+            var lockcrypt = stripTags(lock);											//store Locks unencrypted, everything else encrypted by the Key
         }else if(addLockBtn.textContent == "Export" && lockName){                       //previously found: sign and put in Main box
             mainBox.textContent = locDir[lockName][0];
             signVerify();
@@ -60,30 +58,36 @@ function addLock(fromMain){
             lockName = '';
             return
         }else{
-            if (lock.length > 500) lock = LZString.compressToBase64(lock).replace(/=/g,'');			//cover texts are compressed
+            if (lock.length > 500) lock = LZString.compressToBase64(lockBox.textContent).replace(/=/g,'');			//cover texts are compressed
             var	lockcrypt = keyEncrypt(lock);
             if(!lockcrypt) {lockMsg.textContent = "Storage failed"; return}
         }
         if(fromMain){
-            var name = prompt("Looks like you got someone's new Lock. If you give it a name in the box below, it will be saved to your local directory. If you use a name that is already in the directory, the new Lock will replace the old one.")
+            var name = prompt("Looks like you got someone's new Lock. If you give it a name in the box below, it will be saved to your local directory. If you use a name that is already in the directory, the new Lock will replace the old one. Its fingerprint is:\r\n" + lockPrint(decodeBase64(lockcrypt)))
         }else{
-            var name = prompt("What name do you want to give to this item?");
+            var name = prompt("What name do you want to give to this item?. Its fingerprint is:\r\n" + lockPrint(decodeBase64(lockcrypt)))
         }
-        if(!name){callKey = '';lockBox.textContent = '';return};
+        if(!name){
+            if(!fromMain){
+                callKey = '';
+                lockBox.textContent = ''
+            }
+            return
+        }
         if(isList) name = '--' + name + '--';										//dashes bracket name for Lists
         var newEntry = JSON.parse('{"' + name + '":["' + lockcrypt + '"]}');
         locDir = sortObject(mergeObjects(locDir,newEntry));
         localStorage[filePrefix + userName] = JSON.stringify(locDir);
         lockNames = Object.keys(locDir);
         window.setTimeout(function(){											//this needs to be on a timer for iOS
-            if(stripTags(lock).length == 43 || stripTags(lock).length == 50){
+            if(stripTags(lock).length == 4182){
                 lockMsg.textContent = 'Lock saved to local directory with name: ' + name
             }else if(isList){
                 lockMsg.textContent = 'List saved to local directory with name: ' + name
             }else{
                 lockMsg.textContent = 'Item saved to local directory with name: ' + name
             };
-        }, 100)
+        }, 100);
 
         fillList();
 
@@ -92,22 +96,28 @@ function addLock(fromMain){
             if(lockList.options[i].value == name) lockList.options[i].selected = true
         }
         mainMsg.textContent = name + ' selected';
+        
+        addLockBtn.textContent = "Rand.";
 
-        lockBox.textContent = '';
-
-            if(ChromeSyncOn && chromeSyncMode.checked){													//if Chrome sync is available, add to sync storage
+            if(ChromeSyncOn && chromeSyncMode.checked){							//if Chrome sync is available, add to sync storage
                 syncChromeLock(name,JSON.stringify(locDir[name]))
             }
 
         suspendFindLock = false;
-        callKey = ''
+        if(fromMain){
+            callKey = 'decrypt';
+            lockBox.textContent = name
+        }else{
+            callKey = '';
+            lockBox.textContent = ''
+        } 
     }
 }
 
 //rename or delete a particular key in Object locDir, then store
 function renameLock(){
     if(!fullAccess){
-        lockMsg.textContent = 'Rename not available in Guest mode\r\nPlease restart PassLok';
+        lockMsg.textContent = 'Rename not available in Guest mode\r\nPlease restart KyberLock';
         return
     }
     var	name = lockBox.textContent.trim(),
@@ -134,9 +144,9 @@ function renameLock(){
                     lockMsg.textContent = fullName + ' deleted'
                 }
                 lockBox.textContent = '';
-                addLockBtn.textContent = "Rand."
+                addLockBtn.textContent = "Rand.";
+                fillList()
             }, 100);
-            fillList();
 
                 if(ChromeSyncOn && chromeSyncMode.checked){		//if Chrome sync is available, change in sync storage
                     if(confirm('Item changed in local storage. Do you want to change it also in sync storage?')){
@@ -157,7 +167,13 @@ function renameLock(){
 //this is to just delete the Read-once data for a particular key
 function resetPFS(){
     if(!fullAccess){
-        lockMsg.textContent = 'Reset not available in Guest mode. Please restart PassLok';
+        lockMsg.textContent = 'Reset not available in Guest mode. Please restart KyberLock';
+        return
+    }
+
+    var	lock = lockBox.innerHTML.replace(/\n/g,'<br>').replace(/<br>$/i,"").trim().replace(/<div>/gi,'<br>').replace(/<\/div>/gi,'').trim();
+    if(lock == ''){
+        lockMsg.textContent = 'Nothing to reset';
         return
     }
 
@@ -200,8 +216,8 @@ function findLock(){
         index = searchStringInArrayDB(stringstrip,lockNames);
     if (index >= 0){
         lockName = lockNames[index];
-        if(locDir[lockName][0].length == 43 || locDir[lockName][0].length == 50){
-            lockMsg.textContent = "Directory item found with name: " + lockName;
+        if(locDir[lockName][0].length == 4182){
+            lockMsg.textContent = "Directory item found with name: " + lockName + "\r\nFingerprint:  " + lockPrint(decodeBase64(locDir[lockName][0]));
             addLockBtn.textContent = "Export"
         }else{
             lockMsg.textContent = "Directory item found with name: " + lockName
@@ -224,7 +240,7 @@ function decryptLock(){
     }
     if(lockBox.textContent.trim()){
         var listArray = lockBox.innerHTML.replace(/\n/g,'<br>').split('<br>').filter(Boolean);
-        if(lockBox.textContent.length > 500){
+        if(lockBox.textContent.length > 500 && lockBox.textContent.length != 4182){
             lockBox.innerHTML = decryptSanitizer(LZString.decompressFromBase64(lockBox.textContent).trim());
             newCover(lockBox.textContent.trim());							//this for loading cover text from Lock screen
             lockMsg.textContent = 'New Cover text extracted and ready to use'
@@ -232,8 +248,6 @@ function decryptLock(){
             lockMsg.textContent = 'List extracted'
         } else if(stripTags(lockBox.textContent).length == 43 || stripTags(lockBox.textContent).length == 50){
             lockMsg.textContent = 'Lock extracted'
-        } else if(lockBox.textContent.trim().length == 42){
-            lockMsg.textContent = 'Random Key extracted'
         } else if(lockMsg.textContent.trim() == 'myself'){
             lockMsg.textContent = 'Email/token extracted'
         } else {
@@ -307,9 +321,9 @@ function mergeLockDB(){
         }
         if(!fullAccess){
             if(lockScr.style.display == 'block'){
-                lockMsg.textContent = 'Merge not available in Guest mode\r\nPlease restart PassLok'
+                lockMsg.textContent = 'Merge not available in Guest mode\r\nPlease restart KyberLock'
             }else{
-                mainMsg.textContent = 'Settings update not available in Guest mode\nPlease restart PassLok'
+                mainMsg.textContent = 'Settings update not available in Guest mode\nPlease restart KyberLock'
             }
             return
         }
@@ -328,11 +342,11 @@ function mergeLockDB(){
         var email = keyDecrypt(locDir['myself'][0]);				//populate email and recalculate Keys and Locks
         if(email){myEmail = email}else{return}
         if(!refreshKey()) return;
-        KeySgn = nacl.sign.keyPair.fromSeed(wiseHash(KeyStr,email)).secretKey;
-        KeyDH = ed2curve.convertSecretKey(KeySgn);
-        myLock = nacl.sign.keyPair.fromSecretKey(KeySgn).publicKey;
-        myLockStr = uint8ArrayToBase64(myLock).replace(/=+$/,'');
-        myezLock = changeBase(myLockStr, base64, base36, true);
+        KeySeed = wiseHash(KeyStr,email,64);                         //Uint8Array, length 64
+        myKemKeys = noblePostQuantum.ml_kem768.keygen(KeySeed);       //object with two Uint8Array, public length 1184, secret length 2400
+        myDsaKeys = noblePostQuantum.ml_dsa65.keygen(KeySeed.slice(0,32));        //object with two Uint8Array, public length 1952, secret length 4032
+        myLock = concatUi8([myKemKeys.publicKey,myDsaKeys.publicKey]);
+        myLockStr = encodeBase64(myLock).replace(/=+$/,'');          //base64, length 4182
 
         fillList();
         var reply = prompt("The items have been merged into the local directory. It might be a good idea to change the user name at this point. To do so, enter the new user name and click OK. Otherwise Cancel.");
@@ -348,10 +362,10 @@ function mergeLockDB(){
             if(!reply) return
         }
         if (mainlen == 50) mainstr2 = changeBase(mainstr2.toLowerCase().replace(/l/g,'L'), base36, base64, true);
-        var mainBin2 = base64ToUint8Array(mainstr2),
-            lockBin2 = base64ToUint8Array(lockstr2);
+        var mainBin2 = decodeBase64(mainstr2),
+            lockBin2 = decodeBase64(lockstr2);
         if(!mainBin2 || !lockBin2) return false;
-        var merged = uint8ArrayToBase64(makeShared(mainBin2,lockBin2)).replace(/=+$/,'');
+        var merged = encodeBase64(makeShared(mainBin2,lockBin2)).replace(/=+$/,'');
         mainBox.textContent = merged;
         lockBox.textContent = merged;
         lockMsg.textContent = 'Key merged with Lock, in main box';
@@ -364,9 +378,9 @@ function mergeLockDB(){
         }
         if(!refreshKey()) return;
         if (locklen == 50) lockstr2 = changeBase(lockstr2.toLowerCase().replace(/l/g,'L'), base36, base64, true);
-        var lockBin2 = base64ToUint8Array(lockstr2);
+        var lockBin2 = decodeBase64(lockstr2);
         if(!lockBin2) return false;
-        var merged = uint8ArrayToBase64(makeShared(convertPub(lockBin2),KeyDH)).replace(/=+$/,'');
+        var merged = encodeBase64(makeShared(convertPub(lockBin2),KeyDH)).replace(/=+$/,'');
         lockBox.textContent = merged;
         imageBox.value = merged;										//for image hiding
         lockMsg.textContent = 'The Lock has been merged with your Key and turned into this shared Key. Also copied as image Password';
@@ -393,7 +407,7 @@ function realNulls(object){
 //makes encrypted backup of the whole DB, then if allowed clears locDir object, then stores
 function moveLockDB(){
     if(!fullAccess){
-        optionMsg.textContent = 'Move not allowed in Guest mode\nPlease restart PassLok';
+        optionMsg.textContent = 'Move not allowed in Guest mode\nPlease restart KyberLock';
         return
     }
     callKey = 'movedb';
@@ -403,7 +417,10 @@ function moveLockDB(){
     showLockDB();
     var datacrypt = keyEncrypt(lockBox.innerHTML.replace(/\n/g,'<br>').replace(/\r/g,'').replace(/<br>$/,"").trim());
     if(!datacrypt) return;
-    mainBox.textContent = 'PL25dir==' + datacrypt + '==PL25dir';
+    mainBox.textContent = '';
+    var fileLink = document.createElement('pre');
+    fileLink.textContent = "----------begin encrypted KyberLock database--------==\r\n\r\n" + datacrypt.match(/.{1,80}/g).join("\r\n") + "\r\n\r\n==---------end encrypted KyberLock database-----------";
+    mainBox.appendChild(fileLink);
     optionMsg.textContent = 'Database in Main tab';
     mainMsg.textContent = 'The item in the box contains your directory. To restore it, click Decrypt';
     setTimeout(function(){updateButtons()},50);
@@ -420,7 +437,7 @@ function moveLockDB(){
     }
 
     locDir = {};
-    localStorage.removeItem(filePrefix + userName);
+    delete localStorage[filePrefix + userName];
     lockNames = [];
     optionMsg.textContent = 'Stored items erased';
     fillList();
@@ -437,7 +454,10 @@ function moveMyself(){
     if(fullAccess){
         var datacrypt = keyEncrypt(mainBox.innerHTML.trim());					//preserve formatting
         if(!datacrypt) return;
-        mainBox.textContent = 'PL25bak==' + datacrypt+ '==PL25bak';
+        mainBox.textContent = '';
+        var fileLink = document.createElement('pre');
+        fileLink.textContent = "----------begin encrypted KyberLock settings backup--------==\r\n\r\n" + datacrypt.match(/.{1,80}/g).join("\r\n") + "\r\n\r\n==---------end encrypted KyberLock settings backup-----------";
+        mainBox.appendChild(fileLink);
         var msg = 'The item in the box contains your settings\r\nTo restore them, click Decrypt'
     }else{
         var msg = 'These are your settings, possibly including your encrypted random token\r\nYou may want to save them in a safe place.'
@@ -511,7 +531,7 @@ function searchStringInArrayDB (str, strArray) {
 //decrypts locDir items one by one and encrypts them with new Key
 function recryptDB(newKey,newUserName){
     var oldKeyStretched = KeyDir,
-        newKeyStretched = wiseHash(newKey,newUserName);
+        newKeyStretched = wiseHash(newKey,newUserName,32);
 
     for(var name in locDir){
         if(name != 'myself'){
@@ -536,14 +556,14 @@ function recryptDB(newKey,newUserName){
         }
     }
 
-//change Lock stored under name 'myself'
     KeyDir = newKeyStretched;
     var email = readEmail();
-    KeySgn = nacl.sign.keyPair.fromSeed(wiseHash(newKey,email)).secretKey;
-    KeyDH = ed2curve.convertSecretKey(KeySgn);
-    myLock = nacl.sign.keyPair.fromSecretKey(KeySgn).publicKey;
-    myLockStr = uint8ArrayToBase64(myLock).replace(/=+$/,'');
-    myezLock = changeBase(myLockStr, base64, base36, true);
+    KeySeed = wiseHash(newKey,email,64);                         //Uint8Array, length 64
+    myKemKeys = noblePostQuantum.ml_kem768.keygen(KeySeed);       //object with two Uint8Array, public length 1184, secret length 2400
+    myDsaKeys = noblePostQuantum.ml_dsa65.keygen(KeySeed.slice(0,32));        //object with two Uint8Array, public length 1952, secret length 4032
+    myLock = concatUi8([myKemKeys.publicKey,myDsaKeys.publicKey]);
+    myLockStr = encodeBase64(myLock).replace(/=+$/,'');          //base64, length 4182
+
     locDir['myself'][0] = keyEncrypt(email);
     if(!locDir['myself'][0]) return;
     localStorage[filePrefix + userName] = JSON.stringify(locDir);
@@ -556,7 +576,7 @@ function recryptDB(newKey,newUserName){
 //reads old and new Key from boxes and calls recryptDB so locDir is re-encrypted with the new Key
 function acceptnewKey(){
     if(!fullAccess){
-        optionMsg.textContent = 'Key change not allowed in Guest mode. Please restart PassLok';
+        optionMsg.textContent = 'Key change not allowed in Guest mode. Please restart KyberLock';
         return
     }
     callKey = 'changekey';
@@ -612,12 +632,10 @@ function acceptnewKey(){
 
 //grab the names in locDir and put them on the Main tab selection box
 function fillList(){
-    if(bgColor[0]){
-        if(bgColor[0] != 'FFFFFF') {var headingColor = milder(bgColor[0],'33')}else{var headingColor = '639789'};
-    }else{var headingColor = '639789'};
+     var headingColor = '639789';
     lockList.textContent = '';
     var fragment = document.createDocumentFragment();
-    if(extraButtonsTop.style.display == 'block'){									//steganography buttons showing
+    if(extraButtonsTop.style.display == 'block'){								//steganography buttons showing
         var opt2 = document.createElement("option");
         if(isiPhone){
             opt2.value = "default";
@@ -635,7 +653,7 @@ function fillList(){
         fragment.appendChild(opt3);
         locDir = sortObject(locDir);
         for(var name in locDir){
-            if(locDir[name][0].length > 500){										//only cover texts, which are long
+            if(locDir[name][0].length > 500){								//only cover texts, which are long
                 var opt = document.createElement("option");
                 opt.value = name;
                 opt.textContent = name;
@@ -659,10 +677,12 @@ function fillList(){
         locDir = sortObject(locDir);
         for(var name in locDir){
             if(locDir[name][0]){
-                var opt = document.createElement("option");
-                opt.value = name;
-                opt.textContent = name;
-                fragment.appendChild(opt)
+                if(name.charAt(0) != '$'){                      //don't display legacy users
+                    var opt = document.createElement("option");
+                    opt.value = name;
+                    opt.textContent = name;
+                    fragment.appendChild(opt)
+                }
             }
         }
     }
@@ -689,13 +709,17 @@ function fillBox(){
             }else if(lockList.options[i].value == 'default'){					//default cover selected
                 var covername = 'default';
                 newCover(defaultCoverText)
-            }else if(locDir[lockList.options[i].value][0].length > 500){		//it's a Cover, so decrypt it and make it the new Cover
+            }else if(locDir[lockList.options[i].value][0].length > 500 && locDir[lockList.options[i].value][0].length != 4182){		//it's a Cover, so decrypt it and make it the new Cover
                 var covername = lockList.options[i].value;
                 var covercrypt = locDir[covername][0];
                 isList = true;
                 var cover2 = keyDecrypt(covercrypt);
                 if(!cover2) return;
-                newCover(LZString.decompressFromBase64(cover2))
+                if(extraButtonsTop.style.display == 'block'){           //showing stego menu: change cover text
+                    newCover(LZString.decompressFromBase64(cover2))
+                }else{                                                  //otherwise load text for Pad mode
+                    lockBox.textContent = LZString.decompressFromBase64(cover2)
+                }
             }else{
                  list += '<br>' + lockList.options[i].value
             }
@@ -745,7 +769,7 @@ function resetList(){
         mainMsg.style.color = '';
         if(l == 0){
             mainMsg.textContent = 'Nobody selected'
-        }else if(l > 500 && lockBox.textContent.includes(' ')){
+        }else if(l > 500 && lockBox.textContent.includes(' ')){         //a regular text will contain spaces
             mainMsg.textContent = 'Click Edit to see the Cover text'
         }else{
             mainMsg.textContent = 'Click Edit to see loaded Keys'
@@ -761,12 +785,12 @@ function fillNameList(){
     var list = [];
     for(var name in localStorage){
         if(name == 'clear' || name == 'getItem' || name == 'key'|| name == 'length' || name == 'removeItem' || name == 'setItem' || name == 'randid'){
-          localStorage.removeItem(name)
+            localStorage.removeItem(name)
         }else if(!localStorage[name].includes('myself')){        //key must have a 'myself' key to be valid
-          localStorage.removeItem(name)
+            localStorage.removeItem(name)
         }else{
             if(filePrefix != ''){
-                if(name.includes(filePrefix)) list = list.concat(removeHTMLtags(name.slice(filePrefix.length)))       //remove the PassLok- prefix, if any
+                if(name.includes(filePrefix)) list = list.concat(removeHTMLtags(name.slice(filePrefix.length)))       //remove the KyberLock- prefix, if any
             }else{
                 list = list.concat(removeHTMLtags(name))
             }

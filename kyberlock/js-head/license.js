@@ -1,10 +1,10 @@
 ﻿        /*
-        @source: https://passlok.com/app/index.html
+        @source: https://kyberlock.com/app/index.html
 
         @licstart  The following is the entire license notice for the
         JavaScript code in this page.
 
-        Copyright (C) 2025  Francisco Ruiz
+        Copyright (C) 2024  Francisco Ruiz
 
         The JavaScript code in this page is free software: you can
         redistribute it and/or modify it under the terms of the GNU
@@ -27,6 +27,6 @@
 
     if (window.location.protocol == "http:") {				//force SSL/TLS
 
-        var restOfUrl = window.location.href.substr(5);
+        var restOfUrl = window.location.href.slice(5);
         window.location = "https:" + restOfUrl;
     }

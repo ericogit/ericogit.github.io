@@ -143,8 +143,8 @@ function updateColor(){
 //global variables containing hex screen colors. Default is Light. Indices: 0 = tabs, 1 = background, 2 = buttons, 3 = boxes
 var	fgColor = ['202128','000000','666666','000000'],
     fgColorStore = ['202128','000000','666666','000000'],
-    bgColor = ['c6d5c6','ffffff','e6e6e6','fffff5'],
-    bgColorStore = ['c6d5c6','ffffff','e6e6e6','fffff5'];
+    bgColor = ['c6d5c6','ffffff','e6e6e6','fffffd'],
+    bgColorStore = ['c6d5c6','ffffff','e6e6e6','fffffd'];
 
 //gets color from picker and puts it into global variables
 function getColor(i,isPicker){
@@ -217,10 +217,7 @@ function updateBtnColor(isPicker){
     while(btnTextSheet.cssRules.length){
         removeCSSRule(btnTextSheet,".cssbutton")
     }
-    addCSSRule(btnTextSheet, ".cssbutton", "color:#" + milder(fgColor[2],'28'));
-    decryptBtn.style.color = '#' + fgColor[2];
-    decryptBtnBasic.style.color = '#' + fgColor[2];
-    decryptBtnEmail.style.color = '#' + fgColor[2];
+    addCSSRule(btnTextSheet, ".cssbutton", "color:#" + fgColor[2]);
 }
 
 //and for boxes (index 3)
@@ -263,7 +260,7 @@ function selectStyle(){
         fgColor[1] = '000000';
         bgColor[2] = 'e6e6e6';
         fgColor[2] = '666666';
-        bgColor[3] = 'fffff5';
+        bgColor[3] = 'fffffd';
         fgColor[3] = '000000';
         updateTabColor(false);
         updateBgColor(false);

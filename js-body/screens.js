@@ -1,5 +1,6 @@
 ﻿//start blinking message, for Msg elements
 function blinkMsg(element){
+    element.style.color = '';
     element.textContent = '';
     var blinker = document.createElement('span');
     blinker.className = "blink";
@@ -294,8 +295,8 @@ function changeName(){
         return
     }
     recryptDB(KeyStr,userNameTemp);
-    localStorage[userNameTemp] = localStorage[userName];
-    localStorage.removeItem(userName);
+    localStorage[filePrefix + userNameTemp] = localStorage[filePrefix + userName];
+    localStorage.removeItem(filePrefix + userName);
     userName = userNameTemp;
 
     if(ChromeSyncOn && chromeSyncMode.checked){
@@ -311,14 +312,14 @@ function changeName(){
 //makes base64 code for checkboxes in Options and stores it
 function checkboxStore(){
     if(fullAccess){
-        var checks = document.optionchecks;
+        var checks = document.querySelectorAll('input[type=checkbox],input[type=radio]');
         var binCode = '', i;
         for(i = 0; i < checks.length; i++){
             binCode += checks[i].checked ? 1 : 0
         }
         if(locDir['myself']){
             locDir['myself'][1] = changeBase(binCode,'01',base64);
-            localStorage[userName] = JSON.stringify(locDir);
+            localStorage[filePrefix + userName] = JSON.stringify(locDir);
 
             if(ChromeSyncOn && chromeSyncMode.checked){
                 syncChromeLock('myself',JSON.stringify(locDir['myself']))
@@ -329,15 +330,16 @@ function checkboxStore(){
 
 //resets checkboxes in Options according to the stored code
 function code2checkbox(){
-    var checks = document.optionchecks;
+    var checks = document.querySelectorAll('input[type=checkbox],input[type=radio]');
     if(locDir['myself'][1]){
         var binCode = changeBase(locDir['myself'][1],base64,'01'), i;
         while(binCode.length < checks.length) binCode = '0' + binCode;
         for(i = 0; i < checks.length; i++){
             checks[i].checked = (binCode[i] == '1')
         }
-        var isEmailMode = checks[2].checked;
-        BasicButtons = checks[0].checked || isEmailMode
+        var isEmailMode = checks[6].checked;
+        BasicButtons = !checks[5].checked;
+        if(BasicButtons){checks[4].checked = true; checks[6].checked = false; checks[7].checked = false}
     }
     if(!BasicButtons){									//retrieve Advanced interface
         openClose("basicBtnsTop");
@@ -415,7 +417,7 @@ function cancelKey(){
         fillList();										//put names in selection box
         if(locDir['myself']){
             locDir['myself'][3] = 'guest mode';
-            localStorage[userName] = JSON.stringify(locDir);
+            localStorage[filePrefix + userName] = JSON.stringify(locDir);
 
             if(ChromeSyncOn && chromeSyncMode.checked){
                 syncChromeLock('myself',JSON.stringify(locDir['myself']))
@@ -526,10 +528,11 @@ function newKey2up(evt){
 }
 
 //activated when the user clicks OK on a decoy screen
-//function submitDecoy(){
 function acceptdecoyIn(){
     closeBox();
-    if(callKey == 'sign'){
+    if(dropMode.checked){
+        loadFiles()
+    }else if(callKey == 'sign'){
         signVerify()
     }else{
         lockBtnAction()
@@ -576,6 +579,11 @@ function main2extra(){
 
 //switch to Advanced mode
 function mode2adv(){
+    toolBar1.style.display = 'none';
+    mainBox.style.display = 'block';
+    fileLbl.style.display = 'none';
+    dropBtns.style.display = 'none';
+    mainbuttonsbot.style.display = 'block';
     mainBtnsTop.style.display = 'block';
     basicBtnsTop.style.display = 'none';
     emailBtnsTop.style.display = 'none';
@@ -583,21 +591,31 @@ function mode2adv(){
     advancedModes.style.display = 'block';
     basicHideModes.style.display = 'block';
     specialEncryptModes.style.display = 'block';
+    otherRow2.style.display = '';
+    basicHideModes.style.display = 'block';
     advancedBtns.style.display = 'block';
     advancedHelp.style.display = 'block';
     basicMode.checked = false;
     advancedMode.checked = true;
     emailMode.checked = false;
+    dropMode.checked = false;
     anonMode.style.display = '';
     anonMode.checked = true;
     signedMode.checked = false;
     onceMode.checked = false;
     BasicButtons = false;
+    niceEditor = false;
+    niceEditBtn.textContent = 'Rich';
     checkboxStore()
 }
 
 //switch to Basic mode
 function mode2basic(){
+    toolBar1.style.display = 'none';
+    mainBox.style.display = 'block';
+    fileLbl.style.display = 'none';
+    dropBtns.style.display = 'none';
+    mainbuttonsbot.style.display = 'block';
     mainBtnsTop.style.display = 'none';
     extraButtonsTop.style.display = 'none';
     basicBtnsTop.style.display = 'block';
@@ -606,11 +624,14 @@ function mode2basic(){
     basicHideModes.style.display = 'none';
     advancedModes.style.display = 'none';
     specialEncryptModes.style.display = 'none';
+    otherRow2.style.display = '';
+    basicHideModes.style.display = '';
     advancedBtns.style.display = 'none';
     advancedHelp.style.display = 'none';
     basicMode.checked = true;
     advancedMode.checked = false;
     emailMode.checked = false;
+    dropMode.checked = false;
     resetAdvModes();
     decoyMode.checked = false;
     anonMode.style.display = '';
@@ -618,12 +639,18 @@ function mode2basic(){
     signedMode.checked = false;
     onceMode.checked = false;
     BasicButtons = true;
-    checkboxStore();
-    fillList()
+    niceEditor = false;
+    niceEditBtn.textContent = 'Rich';
+    checkboxStore()
 }
 
 //switch to PassLok for Email compatible mode
 function mode2email(){
+    toolBar1.style.display = 'none';
+    mainBox.style.display = 'block';
+    fileLbl.style.display = 'none';
+    dropBtns.style.display = 'none';
+    mainbuttonsbot.style.display = 'block';
     mainBtnsTop.style.display = 'none';
     extraButtonsTop.style.display = 'none';
     basicBtnsTop.style.display = 'none';
@@ -632,11 +659,15 @@ function mode2email(){
     basicHideModes.style.display = 'block';
     advancedModes.style.display = 'none';
     specialEncryptModes.style.display = 'none';
+    otherRow2.style.display = '';
+    basicHideModes.style.display = 'block';
+    advancedModes.style.display = '';
     advancedBtns.style.display = 'none';
     advancedHelp.style.display = 'none';
     basicMode.checked = false;
     advancedMode.checked = false;
     emailMode.checked = true;
+    dropMode.checked = false;
     ezLokMode.checked = true;
     resetAdvModes();
     letterMode.checked = true;
@@ -644,8 +675,34 @@ function mode2email(){
     signedMode.checked = true;
     onceMode.checked = false;
     BasicButtons = true;
-    checkboxStore();
-    fillList()
+    niceEditor = false;
+    niceEditBtn.textContent = 'Rich';
+    checkboxStore()
+}
+
+//switch to drop mode
+function mode2drop(){
+    toolBar1.style.display = 'none';
+    mainBox.style.display = 'none';
+    fileLbl.style.display = 'block';
+    dropBtns.style.display = 'block';
+    mainbuttonsbot.style.display = 'none';
+    mainBtnsTop.style.display = 'none';
+    extraButtonsTop.style.display = 'none';
+    basicBtnsTop.style.display = 'none';
+    emailBtnsTop.style.display = 'none';
+    lockBtnsBottom.style.display = 'none';
+    otherRow2.style.display = 'none';
+    basicHideModes.style.display = 'none';
+    advancedModes.style.display = 'none';
+    advancedBtns.style.display = 'none';
+    basicMode.checked = false;
+    advancedMode.checked = false;
+    emailMode.checked = false;
+    dropMode.checked = true;
+    BasicButtons = true;
+    niceEditor = false;
+    checkboxStore()
 }
 
 //sets modes selectable in Advanced mode to default values
@@ -661,6 +718,10 @@ function resetAdvModes(){
 
 //opens local directory for input if something seems to be missing
 function main2lock(){
+    if(learnMode.checked){
+		var reply = confirm("This opens a new dialog so the directory at left can be edited, to add, change, or remove Locks, Keys, etc. Cancel if this is not what you want");
+		if(!reply) return
+	}
     if(isMobile) window.scrollTo(0, 0);
     if(tabLinks['mainTab'].className == '') return;
     if(Object.keys(locDir).length == 1 || Object.keys(locDir).length == 0){				//new user, so display a fuller message
