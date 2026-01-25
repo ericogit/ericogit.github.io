@@ -4,13 +4,6 @@ window.onload = function() {
     if(isMobile){
         mainMsg.style.height = '20px';
         imgSpacer.style.display = 'none';
-//        partSpacer1.style.display = 'none';
-//        partSpacer2.style.display = 'none';
-//        decoyInSpacer1.style.display = 'none';
-//        decoyInSpacer2.style.display = 'none';
-//        decoyOutSpacer.style.display = 'none';
-        qrcodeImg.style.width = '100%';
-        qrcodeImg.style.left = '0';
         var bottomButtons = mainbuttonsbot.children;
         for(var i = 0; i < bottomButtons.length; i++) bottomButtons[i].classList.add("narrow")
     }else{
@@ -23,11 +16,8 @@ window.onload = function() {
     if(isiOS) encodeJPGBtn.style.display = 'none';	//JPG hide does not work on iOS
     if(isiPhone || isAndroidPhone){					//to make things fit on narrow screens
         anonLabel.textContent = ' Anon.  ';
-//        modeLabel.style.display = 'none';
-//        otherLabel.style.display = 'none';
-        greenLabel.textContent = 'Grn';
-        customLabel.textContent = 'Cust';
-        backgroundLabel.textContent = 'Bg.';
+        modeLabel.style.display = 'none';
+        otherLabel.style.display = 'none';
         sentencesLabel.textContent = 'Sentence';
         lockScr.style.top = "5%";
         lockScr.style.left = "5%";
@@ -81,7 +71,7 @@ window.onload = function() {
 
     verifyBtn.addEventListener('click', signVerify);
 
-     main2extraBtn.addEventListener('click', main2extra);
+    main2extraBtn.addEventListener('click', main2extra);
 
     decryptBtnBasic.addEventListener('click', lockBtnAction);
 
@@ -135,33 +125,7 @@ window.onload = function() {
 
     advancedMode.addEventListener('click', mode2adv);
 
-    emailMode.addEventListener('click', mode2email);
-
     dropMode.addEventListener('click', mode2drop);
-
-    liteStyle.addEventListener('click', selectStyle);
-
-    darkStyle.addEventListener('click', selectStyle);
-
-    redStyle.addEventListener('click', selectStyle);
-
-    greenStyle.addEventListener('click', selectStyle);
-
-    blueStyle.addEventListener('click', selectStyle);
-
-    customStyle.addEventListener('click', selectStyle);
-
-    colorPicker.addEventListener('change',updateColor);
-
-    rndColors.addEventListener('click', randomColors);
-
-    editTabColor.addEventListener('click', initPicker);
-
-    editBgColor.addEventListener('click', initPicker);
-
-    editBtnColor.addEventListener('click', initPicker);
-
-    editBoxColor.addEventListener('click', initPicker);
 
     anonMode.addEventListener('click', checkboxStore);
 
@@ -171,27 +135,9 @@ window.onload = function() {
 
     learnMode.addEventListener('click', checkboxStore);
 
-    longMode.addEventListener('click', checkboxStore);
-
-    shortMode.addEventListener('click', checkboxStore);
-
-    compatMode.addEventListener('click', checkboxStore);
-
     decoyMode.addEventListener('click', checkboxStore);
 
-    wordLockMode.addEventListener('click', checkboxStore);
-
-    ezLokMode.addEventListener('click', checkboxStore);
-
-    normalLockMode.addEventListener('click', checkboxStore);
-
     fileMode.addEventListener('click', checkboxStore);
-
-    binaryMode.addEventListener('click', checkboxStore);
-
-    textMode.addEventListener('click', checkboxStore);
-
-    qrMode.addEventListener('click', checkboxStore);
 
     includeMode.addEventListener('click', checkboxStore);
 
@@ -239,7 +185,7 @@ window.onload = function() {
 
     decoyOutIcon.addEventListener('click', function(){showPwd('decoyOut')});
 
-    submitDecoy2Btn.addEventListener('click', acceptdecoyIn);
+    submitDecoy2Btn.addEventListener('click', acceptdecoyOut);
 
     cancelDecoy2Btn.addEventListener('click', cancelDecoy);
 
@@ -293,8 +239,6 @@ window.onload = function() {
 
     backtointro4.addEventListener('click', go2intro5);
 
-    mainBox.addEventListener('keyup', charsLeft);
-
     mainBox.addEventListener('paste', pasteMain);
 
     decoyText.addEventListener('keyup', charsLeft);
@@ -324,8 +268,6 @@ window.onload = function() {
     emailBox.addEventListener('keyup', function(event) {emailKeyup(event)}, false);
 
     imageBox.addEventListener('keyup', function(event){boxKeyup('image',event)});
-
-    qrcodeImg.addEventListener('click', function(){qrcodeImg.style.display = 'none';mainMsg.textContent = 'QR code canceled'});
 
 //for the rich text editor boxes and buttons
     formatBlock.addEventListener("change", function() {formatDoc('formatBlock',this[this.selectedIndex].value);this.selectedIndex=0;});
@@ -371,31 +313,19 @@ window.onload = function() {
     }
 
 //fixes after inline styles were moved to css file
-//    lockList.style.padding = '4px';
-//    lockList.style.width = '30%';
     basicBtnsTop.style.display = 'block';
-//    mainMsg.style.minHeight = '20px';
-    extraButtonsTop.style.display = 'none'
+    extraButtonsTop.style.display = 'none';
+
+    //fix for iOS Safari upon startup
+    if(isMobile){
+        if(window.location.hash.match('#a') && window.location.hash.length < 10) window.location.hash = ''
+    }
+
+    if(!localStorage){newUser();}else if(localStorage.length == 0){newUser()};
+
+    fillNameList();
+
+    initTabs()																	//initialize tabs
 };
-
-//fix for iOS Safari upon startup
-if(isMobile){
-    if(window.location.hash.match('#a') && window.location.hash.length < 10) window.location.hash = ''
-}
-
-if(!localStorage){newUser();}else if(localStorage.length == 0){newUser();}else if(localStorage.length == 1 && localStorage['randid']){newUser();};
-
-//initialize QRcode
-var qrcode = new QRCode(document.getElementById("qrcodeImg"), {
-    width : 290,
-    height : 290
-});
-
-fillNameList();
-
-initTabs();																	//initialize tabs
-
-//var time10 = hashTime10();													//get milliseconds for 10 wiseHash at iter = 10
-var time10 = 200									//valid for core2 duo. Should be smaller for more recent machines
 
 //end of body script.

@@ -1,8 +1,5 @@
 ﻿//this is the part of the javascript code that must be within the body
 
-//var time10 = hashTime10();													//get milliseconds for 10 wiseHash at iter = 10
-var time10 = 200;									//valid for core2 duo. Should be smaller for more recent machines
-
 //detect browser and device
     var isMobile = (typeof window.orientation != 'undefined'),
         isChrome = navigator.userAgent.toLowerCase().indexOf('chrome') > -1,
@@ -35,8 +32,8 @@ if(chrome){
 //clears the no JavaScript warning and displays an initial message depending on the type of source
 function showGreeting(){
     var protocol = window.location.protocol;
-    var msgStart = "Welcome to KyberLock\r\n",
-        msgEnd = "\r\nPlease enter your Key. Then click OK";
+    var msgStart = "Welcome to PassLok\r\n",
+        msgEnd = "\r\nSelect your user name and enter your Key. Then click OK";
     if(protocol == 'file:'){
         pwdMsg.textContent = msgStart + 'running from a saved file' + msgEnd
     }else if(protocol == 'https:'){
@@ -89,11 +86,19 @@ function loadFileAsURL(){
             }
         }
         if(fileToLoad.type.slice(0,4) == "text"){
-            var fileLink = document.createElement("a");
-            fileLink.download = fileName;
-            fileLink.href = "data:," + decryptSanitizer(URLFromFileLoaded);			//filter before adding to the DOM
-            fileLink.textContent = fileName;
-            mainBox.appendChild(fileLink)
+            if(URLFromFileLoaded.slice(0,2) == '==' && URLFromFileLoaded.slice(-2) == '=='){
+                var fileLink = document.createElement("a");
+                fileLink.download = fileName;
+                fileLink.href = "data:," + decryptSanitizer(URLFromFileLoaded);			//filter before adding to the DOM
+                fileLink.textContent = fileName;
+                mainBox.appendChild(fileLink)
+            }else{
+                var spacer = document.createElement("br"),
+                    textDiv = document.createElement("div");
+                textDiv.textContent = decryptSanitizer(URLFromFileLoaded).replace(/  /g,' &nbsp;');
+                mainBox.appendChild(spacer);
+                mainBox.appendChild(textDiv)
+            }
         }else{
             var fileLink = document.createElement("a");
             fileLink.download = fileName;
@@ -103,7 +108,7 @@ function loadFileAsURL(){
         }
         mainFile.type = '';
         mainFile.type = 'file'            //reset file input
-    }
+    };
     if(fileToLoad.type.slice(0,4) == "text"){
         fileReader.readAsText(fileToLoad, "UTF-8");
         mainMsg.textContent = 'This is the content of file: ' + fileToLoad.name;
@@ -135,7 +140,7 @@ function loadLockFile(){
         lockBox.appendChild(fileLink);
         lockFile.type = '';
         lockFile.type = 'file'            //reset file input
-    }
+    };
 
     fileReader.readAsDataURL(fileToLoad, "UTF-8");
     lockMsg.textContent = 'File ' + escapedName + ' has been loaded'
@@ -153,10 +158,10 @@ function loadImage(){
         }
         var image = document.createElement("img");
         image.src = decryptSanitizer(URLFromFileLoaded).replace(/=+$/,'');
-        mainBox.appendChild(image);
+        mainBox.appendChild(image)
         imgFile.type = '';
         imgFile.type = 'file'            //reset file input
-    }
+    };
 
     fileReader.readAsDataURL(fileToLoad, "UTF-8");
 }
@@ -167,7 +172,7 @@ function saveFiles(){
     var files = mainBox.querySelectorAll('a'),
         length = files.length;				//since files will be loaded as links in the main box
     for(var i = 0; i < length; i++){		//download all files
-        files[i].click()
+        if(files[i].href.includes('data:')) files[i].click()
     }
     mainBox.contentEditable = 'true'
 }

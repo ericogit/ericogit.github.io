@@ -3,17 +3,20 @@ function signVerify(){
     blinkMsg(mainMsg);
     var array = getType(mainBox.innerHTML.trim()),
         lockBoxHTML = lockBox.innerHTML.replace(/\n/g,'<br>').replace(/<br>$/,"").trim();
-    setTimeout(function(){																			//the rest after a 20 ms delay
-        if(array[0] == 'l'){
-            verifySignature(array[1],lockBoxHTML)
-        }else{
+    setTimeout(function(){													//the rest after a 20 ms delay
+        if(array[1].length == 4182){                                        //it's a Lock, so sign it
             applySignature(array[1])
+        }else{                                                              //if not, verify if the signed marker is present, sign otherwise
+            if(array[0] == 'l'){
+                verifySignature(array[1],lockBoxHTML)
+            }else{
+                applySignature(array[1])
+            }
         }
-        charsLeft()
     },20);						//end of timeout
 }
 
-//adds Schnorr signature to the contents of the main box
+//adds signature to the contents of the main box
 function applySignature(textStr){
     callKey = 'sign';
     pwdMsg.textContent = "";
@@ -24,33 +27,28 @@ function applySignature(textStr){
     if(!refreshKey()) return;
 
     // for decoy message
-    var	padding = decoyEncrypt(75,KeyDH);
+    var	padding = decoyEncrypt(160);                                         //200 bytes of padding
 
-    if(textStr.match('="data:')){
-        var encodedText = stringToUint8Array(textStr)
+    if(textStr.includes('="data:')){
+        var encodedText = decodeUTF8(textStr)
     }else{
         var encodedText = LZString.compressToUint8Array(textStr)
     }
 
     //main signing instruction, prefix is l
-    var sealedText = uint8ArrayToBase64(concatUi8([[150],padding,nacl.sign(encodedText,KeySgn)])).replace(/=+$/,'');
+
+    var signature = noblePostQuantum.ml_dsa65.sign(myDsaKeys.secretKey, encodedText);   //this comes first, then the plaintext, 3309 bytes
+    var sealedText = encodeBase64(concatUi8([[150],padding,signature,encodedText])).replace(/=+$/,'');
 
     mainBox.textContent = '';
     if(fileMode.checked){
-        if(textMode.checked){
-            var fileLink = document.createElement('a');
-            fileLink.download = "PL24sld.txt";
-            fileLink.href = "data:," + sealedText;
-            fileLink.textContent = "PassLok 2.4 Sealed message (text file)"
-        }else{
-            var fileLink = document.createElement('a');
-            fileLink.download = "PL24sld.plk";
-            fileLink.href = "data:binary/octet-stream;base64," + sealedText;
-            fileLink.textContent = "PassLok 2.4 Sealed message (binary file)"
-        }
+        var fileLink = document.createElement('a');
+        fileLink.download = "KL10sld.kyb";
+        fileLink.href = "data:binary/octet-stream;base64," + sealedText;
+        fileLink.textContent = "KyberLock 1.0 Sealed message (binary file)"
     }else{
         var fileLink = document.createElement('pre');
-        fileLink.textContent = ("PL24sld==" + sealedText + "==PL24sld").match(/.{1,80}/g).join("\r\n")
+        fileLink.textContent = "----------begin message sealed with KyberLock--------==\r\n\r\n" + sealedText.match(/.{1,80}/g).join("\r\n") + "\r\n\r\n==---------end message sealed with KyberLock-----------"
     }
     mainBox.appendChild(fileLink);
     mainMsg.textContent = 'The text has been sealed with your secret Key. It is ';
@@ -61,10 +59,10 @@ function applySignature(textStr){
     callKey = ''
 };
 
-//verifies the Schnorr signature of the plaintext, calls applySignature as appropriate.
+//verifies the signature of the plaintext, calls applySignature as appropriate.
 function verifySignature(textStr,LockStr){
     pwdMsg.textContent = "";
-    if (textStr == ""){																	//nothing in text box
+    if (textStr == ""){														//nothing in text box
         mainMsg.textContent = 'Nothing to sign or verify';
         return
     }
@@ -82,7 +80,8 @@ function verifySignature(textStr,LockStr){
     }
     var	Lockstripped = stripTags(LockStr),
         index = searchStringInArrayDB(LockStr,lockNames);
-    if (Lockstripped.length != 43 && Lockstripped.length != 50){									//not a Lock, but maybe it's a name
+
+    if (Lockstripped.length != 4182){									//not a Lock, but maybe it's a name
         if(index >= 0){
             var name = lockNames[index];
             LockStr = replaceByItem(LockStr)
@@ -94,30 +93,33 @@ function verifySignature(textStr,LockStr){
         var name = lockNames[index];
         LockStr = Lockstripped
     }
-    if (LockStr.length == 50) LockStr = changeBase(LockStr.toLowerCase().replace(/l/g,'L'), base36, base64, true); 		//ezLok replaced by regular Lock
-    if (LockStr.length != 43){
+
+    if (LockStr.length != 4182){
         mainMsg.textContent = 'Enter a valid Lock';
         return
     }
 
-    var Lock = base64ToUint8Array(LockStr);
+    var Lock = decodeBase64(LockStr);
     if(!Lock) return false;
-    var	sealedArray = base64ToUint8Array(textStr);
+    var	sealedArray = decodeBase64(textStr);
     if(!sealedArray) return false;
-    var	padding = sealedArray.slice(1,101);
+    var	padding = sealedArray.slice(1,201);
 
-    if(decoyMode.checked) decoyDecrypt(padding,convertPub(Lock));			//extract decoy message, uses DH version of the signing Lock
+    if(decoyMode.checked){ if(!decoyDecrypt(padding)) return };			//extract hidden message
 
-    var	sealedItem = sealedArray.slice(101),
-        result = nacl.sign.open(sealedItem,Lock);								//unsealing of sealed message
+    var	sealedItem = sealedArray.slice(201);
+    var signature = sealedItem.slice(0,3309);
+    var plainText = sealedItem.slice(3309);
+    var pubDsa = Lock.slice(1184);                     //KEM public key is first, then DSA
+    var isValid = noblePostQuantum.ml_dsa65.verify(pubDsa, plainText, signature);
 
-    if(result){
-        if(result.join().match(",61,34,100,97,116,97,58,")){
-            mainBox.innerHTML = decryptSanitizer(uint8ArrayToString(result))
+    if(isValid){
+        if(plainText.join().match(",61,34,100,97,116,97,58,")){
+            mainBox.innerHTML = decryptSanitizer(encodeUTF8(plainText))
         }else{
-            mainBox.innerHTML = decryptSanitizer(LZString.decompressFromUint8Array(result));			//decompress and filter
+            mainBox.innerHTML = decryptSanitizer(LZString.decompressFromUint8Array(plainText))									//decompress and filter
             var mainTxt = mainBox.textContent;
-            if(mainTxt.length == 43 || mainTxt.length == 50) extractLock(mainTxt)                       //it's a Lock, so offer to save it
+            if(mainTxt.length == 4182) extractLock(mainTxt)                                             //it's a Lock, so offer to save it
         }
         setTimeout(function(){if(!decoyMode.checked) mainMsg.textContent = 'Seal ownership is VERIFIED for: ' + name},500)				//apply a delay so this appears last
     }else{
@@ -129,26 +131,16 @@ function verifySignature(textStr,LockStr){
 //Now the Pad encryption mode
 
 var entropyPerChar = 1.58;			//expected entropy of the key text in bits per character, from Shannon, as corrected by Guerrero; for true random UTF8 text this value is 8
+
 //function for encrypting with long key
 function padEncrypt(text){
-    var keyText = lockBox.textContent.replace(/\n/g,' ').trim(),		//turn linefeeds into spaces for compatibility with PassLok for Email
-        keyTextBin = stringToUint8Array(keyText),
-        clipped = false;
-
-    if(shortMode.checked){
-        text = encodeURI(text).replace(/%20/g,' ');
-        if (text.length > 94) clipped = true;  						//94-char capacity in short mode
-        text = text.slice(0,94);
-        while (text.length < 94) text += ' ';							//ensure standard ciphertext length after encoding
-        var nonce = nacl.randomBytes(9),
-            textBin = stringToUint8Array(text)
+    var keyText = lockBox.textContent.replace(/\n/g,' ').trim(),		//turn linefeeds into spaces for compatibility
+        keyTextBin = decodeUTF8(keyText);
+    var nonce = crypto.getRandomValues(new Uint8Array(15));
+    if(text.match('="data:')){
+        var textBin = decodeUTF8(text)
     }else{
-        var nonce = nacl.randomBytes(15);
-        if(text.match('="data:')){
-            var textBin = stringToUint8Array(text)
-        }else{
-            var textBin = LZString.compressToUint8Array(text)
-        }
+        var textBin = LZString.compressToUint8Array(text)
     }
     var	keyLengthNeed = Math.ceil((textBin.length + 64) * 8 / entropyPerChar)
 
@@ -163,40 +155,20 @@ function padEncrypt(text){
 
     var cipherBin = padResult(textBin, keyTextBin, nonce, startIndex),				//main encryption event
         macBin = padMac(textBin, keyTextBin, nonce, startIndex),						//make mac
-        outStr = uint8ArrayToBase64(concatUi8([[116],nonce,macBin,cipherBin])).replace(/=+$/,'');
+        outStr = encodeBase64(concatUi8([[116],nonce,macBin,cipherBin])).replace(/=+$/,'');
 
-    if(shortMode.checked){
-        mainBox.textContent = outStr
-    }else{
-        mainBox.textContent = '';
-        if(fileMode.checked){
-            if(textMode.checked){
-                var fileLink = document.createElement('a');
-                fileLink.download = "PL24msp.txt";
-                fileLink.href = "data:," + outStr;
-                fileLink.textContent = "PassLok 2.4 Pad encrypted message (text file)"
-            }else{
-                var fileLink = document.createElement('a');
-                fileLink.download = "PL24msp.plk";
-                fileLink.href = "data:binary/octet-stream;base64," + outStr;
-                fileLink.textContent = "PassLok 2.4 Pad encrypted message (binary file)"
-            }
-        }else if(emailMode.checked){
-            var fileLink = document.createElement('pre');
-            fileLink.textContent = "----------begin Pad mode message encrypted with PassLok--------==\r\n\r\n" + outString.match(/.{1,80}/g).join("\r\n") + "\r\n\r\n==---------end Pad mode message encrypted with PassLok-----------"
-        }else{
-            var fileLink = document.createElement('pre');
-            fileLink.textContent = ("PL24msp==" + outStr + "==PL24msp").match(/.{1,80}/g).join("\r\n")
-        }
-        mainBox.appendChild(fileLink)
+    mainBox.textContent = '';
+    if(fileMode.checked){
+        var fileLink = document.createElement('a');
+        fileLink.download = "KL10msp.kyb";
+        fileLink.href = "data:binary/octet-stream;base64," + outStr;
+        fileLink.textContent = "KyberLock 1.0 Pad encrypted message (binary file)"
+    }else{            
+        var fileLink = document.createElement('pre');
+        fileLink.textContent = "----------begin Pad mode message encrypted with KyberLock--------==\r\n\r\n" + outStr.match(/.{1,80}/g).join("\r\n") + "\r\n\r\n==---------end Pad mode message encrypted with KyberLock-----------"
     }
-    if(clipped){
-        mainMsg.textContent = 'The message has been truncated'
-    }else{
-        mainMsg.textContent = 'Encryption successful. Click Email or copy and send.'
-    }
-
-    if(emailMode.checked) sendMail();
+    mainBox.appendChild(fileLink)
+    mainMsg.textContent = 'Encryption successful. Click Email or copy and send.'
 
     callKey = ''
 }
@@ -223,7 +195,7 @@ function padResult(textBin, keyTextBin, nonce, startIndex){
     var count = Math.ceil(textBin.length / 64),
         keyStream = new Uint8Array(count * 64);
     for(var index = 0; index < count; index++){
-        var indexBin = stringToUint8Array(index);
+        var indexBin = decodeUTF8(index);
         var inputArray = new Uint8Array(keyBin.length + nonce.length + indexBin.length);
 
         //now concatenate the arrays
@@ -236,7 +208,9 @@ function padResult(textBin, keyTextBin, nonce, startIndex){
         for(i = 0; i < indexBin.length; i++){
             inputArray[keyBin.length + nonce.length + i] = indexBin[i]
         }
-        var hash = nacl.hash(inputArray);			//now take the hash
+
+        var hash = nobleHashes.sha512(inputArray);                   //now take the sha512 hash, for compatibility with PassLok
+
         for(i = 0; i < 64; i++){
             keyStream[index*64 + i] = hash[i]
         }
@@ -251,7 +225,7 @@ function padResult(textBin, keyTextBin, nonce, startIndex){
 }
 
 //makes a 16-byte message authentication code
-function padMac(textBin, keyTextBin, nonce, startIndex){						//startIndex is the one from the prompt
+function padMac(textBin, keyTextBin, nonce, startIndex){				//startIndex is the one from the prompt
     var textKeyLength = Math.ceil(textBin.length * 8 / entropyPerChar),
         macKeyLength = Math.ceil(64 * 8 / entropyPerChar);						//collect enough entropy so the probability of a positive is the same for correct and incorrect decryptions
     var macBin = new Uint8Array(textBin.length + macKeyLength + nonce.length),
@@ -282,8 +256,8 @@ function padMac(textBin, keyTextBin, nonce, startIndex){						//startIndex is th
         macBin[macKeyLength + nonce.length + i] = textBin[i]
     }
 
-    //take the SHA512 hash and keep the first 16 bytes
-    return nacl.hash(macBin).slice(0,16)
+    //take the SHA512 hash and keep the first 16 bytes, for caompatibility with PassLok
+    return nobleHashes.sha512(macBin).slice(0,16)
 }
 
 //for decrypting with long key
@@ -295,18 +269,12 @@ function padDecrypt(cipherStr){
         return
     }
     try{
-        var inputBin = base64ToUint8Array(cipherStr);
+        var inputBin = decodeBase64(cipherStr);
         if(!inputBin) return false;
-        var	keyTextBin = stringToUint8Array(keyText);
-        if(cipherStr.length == 160){									//short mode message
-            var	nonce = inputBin.slice(1,10),
-                macBin = inputBin.slice(10,26),
-                cipherBin = inputBin.slice(26)
-        }else{															//all other modes
-            var	nonce = inputBin.slice(1,16),
-                macBin = inputBin.slice(16,32),
-                cipherBin = inputBin.slice(32)
-        }
+        var	keyTextBin = decodeUTF8(keyText);
+        var	nonce = inputBin.slice(1,16),
+            macBin = inputBin.slice(16,32),
+            cipherBin = inputBin.slice(32);
 
     }catch(err){
         mainMsg.textContent = "This is corrupt or not encrypted"
@@ -323,14 +291,10 @@ function padDecrypt(cipherStr){
     var plainBin = padResult(cipherBin, keyTextBin, nonce, startIndex);		//decryption instruction
 
     try{
-        if(cipherStr.length == 160){
-            var plain = decodeURI(uint8ArrayToString(plainBin)).trim()
+        if(plainBin.join().match(",61,34,100,97,116,97,58,")){					//this when the result is a file, which uses no compression
+            var plain = encodeUTF8(plainBin)
         }else{
-            if(plainBin.join().match(",61,34,100,97,116,97,58,")){					//this when the result is a file, which uses no compression
-                var plain = uint8ArrayToString(plainBin)
-            }else{
-                var plain = LZString.decompressFromUint8Array(plainBin)			//use compression in the normal case
-            }
+            var plain = LZString.decompressFromUint8Array(plainBin)			//use compression in the normal case
         }
     }catch(err){
         mainMsg.textContent = "Decryption has failed"
@@ -344,7 +308,7 @@ function padDecrypt(cipherStr){
             macChecks = macChecks && (macBin[i] == macNew[i])
         }
 
-        if(macChecks){																//check authentication and display result if passed
+        if(macChecks){									//check authentication and display result if passed
             mainBox.innerHTML = decryptSanitizer(plain);
             mainMsg.textContent = 'Decryption successful';
         }else{
@@ -373,7 +337,7 @@ function makeAlphabet(string){
                 result += letter;
                 var reg = new RegExp(letter);
                 alpha = alpha.replace(reg,'')
-            }else{										//letter was picked, so take first letter before it in the alphabet that is still available
+            }else{							//letter was picked, so take first letter before it in the alphabet that is still available
                 var index = base26.indexOf(letter),
                     alphaLength = alpha.length;
                 for(var j = 0; j < alphaLength; j++){
@@ -543,30 +507,20 @@ function humanEncrypt(text,isEncrypt){
         cipherText = cipherText.replace(/QQ/g,'. ').replace(/Q/g,' ').replace(/KU([AEIO])/g,'QU$1')
     }
 
-    if(shortMode.checked || !isEncrypt){
-        mainBox.textContent = cipherText					//no tags in short mode or decrypting
-    }else if(isEncrypt){
+    if(isEncrypt){
         mainBox.textContent = '';
         if(fileMode.checked){
-            if(textMode.checked){
-                var fileLink = document.createElement('a');
-                fileLink.download = "PL24msh.txt";
-                fileLink.href = "data:," + cipherText;
-                fileLink.textContent = "PassLok 2.4 Human encrypted message (text file)"
-            }else{
-                var fileLink = document.createElement('a');
-                fileLink.download = "PL24msh.plk";
-                fileLink.href = "data:binary/octet-stream;base64," + cipherText;
-                fileLink.textContent = "PassLok 2.4 Human encrypted message (binary file)"
-            }
-        }else if(emailMode.checked){
-            var fileLink = document.createElement('pre');
-            fileLink.textContent = "----------begin Human mode message encrypted with PassLok--------==\r\n\r\n" + outString.match(/.{1,80}/g).join("\r\n") + "\r\n\r\n==---------end Human mode message encrypted with PassLok-----------"
+            var fileLink = document.createElement('a');
+            fileLink.download = "KL10msh.plk";
+            fileLink.href = "data:binary/octet-stream;base64," + cipherText;
+            fileLink.textContent = "KyberLock Human encrypted message (binary file)"
         }else{
             var fileLink = document.createElement('pre');
-            fileLink.textContent = ("PL24msh==" + cipherText + "==PL24msh").match(/.{1,80}/g).join("\r\n")
+            fileLink.textContent = "----------begin Human mode message encrypted with KyberLock--------==\r\n\r\n" + cipherText.match(/.{1,80}/g).join("\r\n") + "\r\n\r\n==---------end Human mode message encrypted with KyberLock-----------"
         }
         mainBox.appendChild(fileLink)
+    }else{
+        mainBox.textContent = cipherText
     }
     if(isEncrypt){
         mainMsg.textContent = 'Human encryption done. Recipients can decrypt this by hand'
@@ -577,9 +531,9 @@ function humanEncrypt(text,isEncrypt){
     callKey = ''
 }
 
-//alternative to Math.random based on nacl.randomBytes. Used to generate floating point numbers between 0 and 1. Uses 8 bytes as space, which is enough for double precision
+//alternative to Math.random based on crypto API. Used to generate floating point numbers between 0 and 1. Uses 8 bytes as space, which is enough for double precision
 function betterRandom(){
-    var randomArray = nacl.randomBytes(8),
+    var randomArray = crypto.getRandomValues(new Uint8Array(8)),
         integer = 0,
         maxInt = 18446744073709551616; 				//this is 256^8
     for(var i = 0; i < 8; i++) integer = integer * 256 + randomArray[i];

@@ -13,7 +13,7 @@ function charsLeft(){
     //for decoy message box
     if(decoyIn.style.display == 'block'){
         var chars = encodeURI(decoyText.value).replace(/%20/g,' ').length,
-            limit = 75;
+            limit = 160;
         if(chars <= limit){
             decoyInMsg.textContent = chars + " characters out of " + limit + " used"
         }else{
@@ -32,30 +32,6 @@ function charsLeft(){
             chatmsg.textContent = 'Maximum length exceeded. The message will be truncated'
         }
         return
-    }
-
-    //Now for main box. Short mode character count
-    else if(shortMode.checked && mainBox.textContent.match(/[^a-zA-Z0-9+\/=-]/)){		//don't display character count if this is output
-        updateButtons();
-        var chars = encodeURI(mainBox.textContent).replace(/%20/g,' ').length,
-            sharedKey = stripTags(replaceByItem(lockBox.textContent.trim()));
-        if(!sharedKey) return;
-        if(sharedKey.length != 43 && sharedKey.length != 50 && !onceMode.checked){
-            var limit = 94									//Key-encrypted mode, 94 chars
-        }else if(anonMode.checked){
-            var limit = 62									//anonymous mode, 62 chars
-        }else if(signedMode.checked){
-            var limit = 94									//signed mode, 94 chars
-        }else if(onceMode.checked){
-            var limit = 46									//Read-once mode, 46 chars
-        }
-        if(extraButtonsTop.style.display != 'block'){		//don't show this if hiding or splitting
-            if(chars <= limit){
-                mainMsg.textContent = chars + " characters out of " + limit + " used"
-            }else{
-                mainMsg.textContent = 'Maximum length exceeded. The message will be truncated'
-            }
-        }
     }else{
         mainMsg.textContent = '';					//to clear previous errors while typing
         updateButtons()							//display button labels according to item nature
@@ -68,7 +44,7 @@ function updateButtons(){
         type = getType(string)[0],
         isRecipient = !!lockBox.textContent.trim();
 
-    if(type && type.match(/[hkdsgasoprASO]/)){
+    if(type && type.match(/[hkdgASO]/)){
         decryptBtn.textContent = 'Decrypt';
         decryptBtnBasic.textContent = 'Decrypt';
         decryptBtnEmail.textContent = 'Decrypt';
@@ -95,7 +71,7 @@ function updateButtons(){
     }
     if(type && type == 'l'){verifyBtn.textContent = 'Unseal'}else{verifyBtn.textContent = 'Seal'};
 
-    if(string.match(/PL\d{2}p\d{3}/)){						//box contains parts
+    if(string.match(/KL\d{2}p\d{3}/) || string.match(/part out of \d{3} split with KyberLock/)){			//box contains parts
         secretShareBtn.textContent = 'Join'
     }else{
         secretShareBtn.textContent = 'Split'
@@ -105,16 +81,16 @@ function updateButtons(){
 
 //gets recognized type of string, if any, otherwise returns false. Also returns cleaned-up string
 function getType(stringIn){
-    var string = stringIn.replace(/&[^;]+;/g,'').replace(/<a(.*?).(plk|txt)" href="data:(.*?),/,'').replace(/"(.*?)\/a>/,''); 	//remove special chars, files and images
-    if(string.match('==')) string = string.split('==')[1];									//remove PassLok tags
+    var string = stringIn.replace(/&[^;]+;/g,'').replace(/<a(.*?).kyb" href="data:(.*?),/,'').replace(/"(.*?)\/a>/,''); 	//remove special chars, files and images
+    if(string.match('==')) string = string.split('==')[1];									//remove KyberLock tags
     string = string.replace(/<(.*?)>/g,'').replace(/-/g,'').replace(/\r?\n|\r/g,'').trim();		//remove HTML tags and dashes, plus carriage returns
 
     var	type = string.charAt(0),
-        hasLock = (string.slice(50,56) == '//////'),
-        typeGC = string.charAt(56),												//PassLok for Email compatible
+        hasLock = (string.slice(4182,4188) == '//////'),
+        typeGC = string.charAt(4188),								//in case it has prepended Lock
         isBase64 = !string.match(/[^a-zA-Z0-9\+\/]/),
-        isBase26 = !string.match(/[^A-Z ]/),										//spaces allowed, as in 5-letter codegroups
-        isNoLock = string.length != 43 && string.length != 50;
+        isBase26 = !string.match(/[^A-Z ]/),						//spaces allowed, as in 5-letter codegroups
+        isNoLock = string.length != 4182;
 
     if(!hasLock && type.match(/[lkgdasoprASO]/) && isBase64 && !isBase26 && isNoLock && string.length > 40){				//encrypted or signed, no Lock prepended
         return [type, string]
@@ -140,15 +116,13 @@ function pasteMain() {
         var array = getType(string.replace(/<(.*?)>/g,'')),
             type = array[0],
             lockBoxHTML = lockBox.innerHTML.replace(/\n/g,'<br>').replace(/\r/g,'').replace(/<br>$/,"").trim();
-        if(type && type.match(/[hkdsgasoprASO]/)){							//known encrypted type: decrypt
+        if(type && type.match(/[hkdgASO]/)){							//known encrypted type: decrypt
             unlock(type,array[1],lockBoxHTML);
             return
         }else if(type && type == 'l'){										//unseal
             verifySignature(array[1],lockBoxHTML);
             return
         }else if(type && type == 'c'){										//store new Lock
-            extractLock(string)
-        }else if(string.split(/[ _]/).length == 20){							//word Lock
             extractLock(string)
         }
     }, 0)
@@ -197,20 +171,13 @@ function clearIntroEmail(){
 //encrypts, decrypts, or sends invite depending on main box content
 function lockBtnAction(){
     var text = mainBox.innerHTML.trim();
-    if(!text){
-        makeQRcode();		//includes Lock
-        return
-    }
     var array = getType(text),
         type = array[0],
         lockBoxHTML = lockBox.innerHTML.replace(/\n/g,'<br>').replace(/\r/g,'').replace(/<br>$/,"").trim();
-    if(type && type.match(/[hkdgasoprASO]/)){								//known encrypted type: decrypt
+    if(type && type.match(/[hkdgASO]/)){								//known encrypted type: decrypt
         unlock(type,array[1],lockBoxHTML)
-    }else if(!!lockBoxHTML){												//recipients selected: encrypt and send if Email mode
-        lock(lockBoxHTML,array[1]);
-        setTimeout(function(){
-            if(emailMode.checked) sendMail()
-        },500)
+    }else if(!!lockBoxHTML){									//recipients selected: encrypt
+        lock(lockBoxHTML,text)
     }else{
         makeInvitation()													//no recipients: invite
     }
@@ -246,19 +213,19 @@ function suggestIntro(){
     pwdIntroBox.type="text";
     pwdIntroBox.value = output.trim();
     pwdIntroIcon.src = hideImg;
-    keyStrength(output.trim(),true)
+    keyStrength(output.trim(),'pwdIntro')
 }
 
-//makes a new user account
+//launches the Intro wizard
 function newUser(){
-    introscr.style.display = "block";
+    introscr1.style.display = "block";
     BasicButtons = true
 }
 
 //shows email screen so email/token can be changed
 function showEmail(){
     if(!fullAccess){
-        optionMsg.textContent = 'Email change not allowed in Guest mode. Please restart PassLok';
+        optionMsg.textContent = 'Email change not allowed in Guest mode. Please restart KyberLock';
         return
     }
     if(isMobile) window.scrollTo(0, 0);
@@ -270,7 +237,7 @@ function showEmail(){
 //shows user name so it can be changed
 function showName(){
     if(!fullAccess){
-        optionMsg.textContent = 'Name change not allowed in Guest mode. Please restart PassLok';
+        optionMsg.textContent = 'Name change not allowed in Guest mode. Please restart KyberLock';
         return
     }
     if(isMobile) window.scrollTo(0, 0);
@@ -337,35 +304,24 @@ function code2checkbox(){
         for(i = 0; i < checks.length; i++){
             checks[i].checked = (binCode[i] == '1')
         }
-        var isEmailMode = checks[6].checked;
         BasicButtons = !checks[5].checked;
-        if(BasicButtons){checks[4].checked = true; checks[6].checked = false; checks[7].checked = false}
+        if(BasicButtons){checks[4].checked = true; checks[6].checked = false}
     }
     if(!BasicButtons){									//retrieve Advanced interface
         openClose("basicBtnsTop");
         openClose("mainBtnsTop");
         openClose("lockBtnsBottom");
-        openClose("basicHideModes");
-        openClose('advancedModes');
-        openClose('specialEncryptModes');
+        openClose('hideModes');
         openClose('advancedBtns');
-        openClose('advancedHelp');
         basicMode.checked = false;
         advancedMode.checked = true
     }
-    if(isEmailMode){									//Email compatible interface
-        mode2email();
-        updateButtons()
-    }
-    getCustomColors();
-    selectStyle();
-
     if(ChromeSyncOn) syncCheck.style.display = 'block'
 }
 
 //go to 2nd intro screen, and back. The others are similar
 function go2intro2(){
-    openClose('introscr');
+    openClose('introscr1');
     openClose('introscr2')
 }
 function go2intro3(){
@@ -377,7 +333,6 @@ function go2intro4(){
     openClose('introscr4')
 }
 function go2intro5(){
-    intromsg2.textContent = '';
     openClose('introscr4');
     openClose('introscr5')
 }
@@ -390,11 +345,11 @@ function closeBox(){
     decoyIn.style.display = "none";
     decoyOut.style.display = "none";
     partsIn.style.display = "none";
+    nameScr.style.display = "none";
     keyChange.style.display = "none";
     emailScr.style.display = "none";
     chatDialog.style.display = "none";
-    nameScr.style.display = "none";
-    introscr.style.display = "none"
+    introscr1.style.display = "none"
 }
 
 //Key entry is canceled, so record the limited access mode and otherwise start normally
@@ -468,7 +423,7 @@ function cancelKeyChange(){
 
 //generic function to evaluate key strength and execute on Enter. Possible names are: pwd, oldPwd, decoyIn, decoyOut, imageBox
 function boxKeyup(name,evt){
-    evt = evt || window.event;
+    evt = evt;
     var key = evt.keyCode || evt.which || evt.keyChar;
     if(key == 13){
         window['accept' + name]()
@@ -479,7 +434,7 @@ function boxKeyup(name,evt){
 
 //triggered if the user types Enter in the locks screen
 function lockBoxKeyup(evt){
-    evt = evt || window.event;												//IE6 compliance
+    evt = evt;												//IE6 compliance
     var key = evt.keyCode || evt.which || evt.keyChar;
     if(lockBox.textContent.trim() == ''){
         addLockBtn.textContent = "Rand."
@@ -588,18 +543,12 @@ function mode2adv(){
     basicBtnsTop.style.display = 'none';
     emailBtnsTop.style.display = 'none';
     lockBtnsBottom.style.display = 'block';
-    advancedModes.style.display = 'block';
-    basicHideModes.style.display = 'block';
-    specialEncryptModes.style.display = 'block';
     otherRow2.style.display = '';
-    basicHideModes.style.display = 'block';
+    hideModes.style.display = 'block';
     advancedBtns.style.display = 'block';
-    advancedHelp.style.display = 'block';
     basicMode.checked = false;
     advancedMode.checked = true;
-    emailMode.checked = false;
     dropMode.checked = false;
-    anonMode.style.display = '';
     anonMode.checked = true;
     signedMode.checked = false;
     onceMode.checked = false;
@@ -621,58 +570,14 @@ function mode2basic(){
     basicBtnsTop.style.display = 'block';
     emailBtnsTop.style.display = 'none';
     lockBtnsBottom.style.display = 'none';
-    basicHideModes.style.display = 'none';
-    advancedModes.style.display = 'none';
-    specialEncryptModes.style.display = 'none';
     otherRow2.style.display = '';
-    basicHideModes.style.display = '';
+    hideModes.style.display = 'none';
     advancedBtns.style.display = 'none';
-    advancedHelp.style.display = 'none';
     basicMode.checked = true;
     advancedMode.checked = false;
-    emailMode.checked = false;
     dropMode.checked = false;
-    resetAdvModes();
-    decoyMode.checked = false;
-    anonMode.style.display = '';
     anonMode.checked = true;
     signedMode.checked = false;
-    onceMode.checked = false;
-    BasicButtons = true;
-    niceEditor = false;
-    niceEditBtn.textContent = 'Rich';
-    checkboxStore()
-}
-
-//switch to PassLok for Email compatible mode
-function mode2email(){
-    toolBar1.style.display = 'none';
-    mainBox.style.display = 'block';
-    fileLbl.style.display = 'none';
-    dropBtns.style.display = 'none';
-    mainbuttonsbot.style.display = 'block';
-    mainBtnsTop.style.display = 'none';
-    extraButtonsTop.style.display = 'none';
-    basicBtnsTop.style.display = 'none';
-    emailBtnsTop.style.display = 'block';
-    lockBtnsBottom.style.display = 'none';
-    basicHideModes.style.display = 'block';
-    advancedModes.style.display = 'none';
-    specialEncryptModes.style.display = 'none';
-    otherRow2.style.display = '';
-    basicHideModes.style.display = 'block';
-    advancedModes.style.display = '';
-    advancedBtns.style.display = 'none';
-    advancedHelp.style.display = 'none';
-    basicMode.checked = false;
-    advancedMode.checked = false;
-    emailMode.checked = true;
-    dropMode.checked = false;
-    ezLokMode.checked = true;
-    resetAdvModes();
-    letterMode.checked = true;
-    anonMode.checked = false;
-    signedMode.checked = true;
     onceMode.checked = false;
     BasicButtons = true;
     niceEditor = false;
@@ -693,27 +598,14 @@ function mode2drop(){
     emailBtnsTop.style.display = 'none';
     lockBtnsBottom.style.display = 'none';
     otherRow2.style.display = 'none';
-    basicHideModes.style.display = 'none';
-    advancedModes.style.display = 'none';
+    hideModes.style.display = 'none';
     advancedBtns.style.display = 'none';
     basicMode.checked = false;
     advancedMode.checked = false;
-    emailMode.checked = false;
     dropMode.checked = true;
     BasicButtons = true;
     niceEditor = false;
     checkboxStore()
-}
-
-//sets modes selectable in Advanced mode to default values
-function resetAdvModes(){
-    longMode.checked = true;
-    shortMode.checked = false;
-    compatMode.checked = false;
-    letterMode.checked = true;
-    wordMode.checked = false;
-    spaceMode.checked = false;
-    sentenceMode.checked = false
 }
 
 //opens local directory for input if something seems to be missing
@@ -728,7 +620,7 @@ function main2lock(){
         lockMsg.textContent = 'Please enter a Lock or shared Key in the lower box. To store it, write a name in the top box and click Save'
     }
     var string = lockBox.textContent.trim();
-    if(string.length > 500){							//cover text detected, so replace the currently selected one
+    if(string.length > 500 && string.length != 4182){							//cover text detected, so replace the currently selected one
         newCover(string)
     }
     if(string == '') addLockBtn.textContent = "Rand.";
@@ -750,7 +642,7 @@ function image2main(){
 //opens a chat page
 function main2chat(token){
     if(token){
-        window.open("https://passlok.com/chat/chat.html#" + token);
+        window.open("https://PassLok.com/chat/chat.html#" + token);
         mainMsg.textContent = 'Chat session open in a separate tab'
     }
 }
@@ -789,7 +681,6 @@ function key2any(){
 
 //leave email screen
 function email2any(){
-    if(callKey = 'showlock') var dispLock = true;				//in case we were in the middle of displaying the Lock
     callKey = 'changeemail';
     var email = emailBox.value.trim();
     if(myEmail.length == 43 && fullAccess){
@@ -802,13 +693,13 @@ function email2any(){
     myEmail = email;
     emailBox.value = '';
     if(!refreshKey()) return;
-    if(!KeyDir) KeyDir = wiseHash(KeyStr,userName);
-    KeySgn = nacl.sign.keyPair.fromSeed(wiseHash(KeyStr,myEmail)).secretKey;			//do this regardless in case email has changed
-    KeyDH = ed2curve.convertSecretKey(KeySgn);
-    myLock = nacl.sign.keyPair.fromSecretKey(KeySgn).publicKey;
-    myLockStr = nacl.util.encodeBase64(myLock).replace(/=+$/,'');
-    myezLock = changeBase(myLockStr, base64, base36, true);
-    if(dispLock) lockDisplay();
+    if(!KeyDir) KeyDir = wiseHash(KeyStr,userName,32);
+    
+    KeySeed = wiseHash(KeyStr,myEmail,64);                         //Uint8Array, length 64
+    myKemKeys = noblePostQuantum.ml_kem768.keygen(KeySeed);       //object with two Uint8Array, public length 1184, secret length 2400
+    myDsaKeys = noblePostQuantum.ml_dsa65.keygen(KeySeed.slice(0,32));        //object with two Uint8Array, public length 1952, secret length 4032
+    myLock = concatUi8([myKemKeys.publicKey,myDsaKeys.publicKey]);      //signing public key concatenated with encrypting public key, length 3136
+    myLockStr = encodeBase64(myLock).replace(/=+$/,'')          //base64, length 4182
 
     if(fullAccess) storemyEmail();
     emailScr.style.display = 'none';
@@ -935,10 +826,8 @@ function showTab(){
       }
       if(this.hash == '#mainTab') fillList();
       if(this.hash != '#optionsTab'){
-          customColors.style.display = 'none';
           optionMsg.textContent = 'Change Name, Key, etc.'
       }
-      storeColors();
 
       // Stop the browser following the link
       return false

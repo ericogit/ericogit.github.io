@@ -32,9 +32,9 @@ var importImage = function(e) {
             if(locklen == 43 || locklen == 50){					//Lock identified, compute shared Key
                 if(!refreshKey()) return;
                 if (locklen == 50) lock = changeBase(lock.toLowerCase().replace(/l/g,'L'), base36, base64, true);
-                var lockBin = base64ToUint8Array(lock);
+                var lockBin = decodeBase64(lock);
                 if(!lockBin) return false;
-                imageBox.value = uint8ArrayToBase64(makeShared(convertPub(lockBin),KeyDH)).replace(/=+$/,'')
+                imageBox.value = encodeBase64(makeShared(convertPub(lockBin),KeyDH)).replace(/=+$/,'')
             }else{													//not a Lock, so use it directly
                 imageBox.value = lock
             }
@@ -117,13 +117,13 @@ function encodePNG(){
     var text = mainBox.textContent.trim();
     if(text.match('==')) text = text.split('==')[1].replace(/[-\s]/g,'').replace(/<(.*?)>/gi,"");			//remove end tags, spaces, newlines, and dashes from Locks
 
-    //bail out if this is not a PassLok string, etc.
+    //bail out if this is not a KyberLock string, etc.
     if(!text){
         imageMsg.textContent = 'There is nothing to hide';
         return
     }
     if(!isBase64(text.replace(/=/g,''))){
-        imageMsg.textContent = 'The text contains illegal characters for a PassLok string';
+        imageMsg.textContent = 'The text contains illegal characters for a KyberLock string';
         return
     }
     if(previewImg.src.length < 100){											//no image loaded
@@ -176,7 +176,7 @@ function encodePNGprocess(text){
     //now turn the base64 text into a binary array
     var msgBin = toBin(text).concat(imgEOF),							//also replace special characters with base64 and add 48-bit end marker
         pwdArray = imageBox.value.trim().replace(/\n/g,' ').split('|'),
-        seed = uint8ArrayToBase64(wiseHash(pwdArray[0].trim(), length.toString() + 'png'));
+        seed = encodeBase64(wiseHash(pwdArray[0].trim(), length.toString() + 'png', 32));
     if(pwdArray.length == 3){
         var pwd2 = pwdArray[1].trim(),
             msgBin2 = toBin(LZString.compressToBase64(pwdArray[2].trim())).concat(imgEOF);						//for when there is a second message
@@ -189,7 +189,7 @@ function encodePNGprocess(text){
     if(msgBin2){													//this is done only if there is a second message, to be added immediately after the main message
         msgBin2 = msgBin2.concat(imgEOF);
 
-        var seed2 = uint8ArrayToBase64(wiseHash(pwd2, lastIndex.toString() + 'png'));  			//using Wisehash rather than built-in
+        var seed2 = encodeBase64(wiseHash(pwd2, lastIndex.toString() + 'png', 32));  			//using Wisehash rather than built-in
 
         shuffleCoefficients(seed2,lastIndex + 1);							//shuffle only beyond the last index used
 
@@ -272,7 +272,7 @@ function decodePNG(){
     allCoefficients = allCoefficients.slice(0,k);
 
     var pwdArray = imageBox.value.trim().replace(/\n/g,' ').split('|'),
-        seed = uint8ArrayToBase64(wiseHash(pwdArray[0].trim(), length.toString() + 'png'));
+        seed = encodeBase64(wiseHash(pwdArray[0].trim(), length.toString() + 'png', 32));
     if(pwdArray.length == 2) var pwd2 = pwdArray[1].trim();										//for when there is a second message
 
     shuffleCoefficients(seed,0);																	//scramble image data to unpredictable locations
@@ -280,7 +280,7 @@ function decodePNG(){
     var result = decodeFromCoefficients('png',0);
 
     if(pwd2){													//extract hidden message if a second password is supplied
-        var seed2 = uint8ArrayToBase64(wiseHash(pwd2, result[2].toString() + 'png'));
+        var seed2 = encodeBase64(wiseHash(pwd2, result[2].toString() + 'png', 32));
         shuffleCoefficients(seed2,result[2] + 1);
         var result2 = decodeFromCoefficients('png',result[2] + 1)
     }
@@ -325,7 +325,7 @@ var decodeJPG = function(){
         allCoefficients = removeZeros(rawCoefficients);							//get rid of zeros
 
         var pwdArray = imageBox.value.trim().replace(/\n/g,' ').split('|'),
-            seed = uint8ArrayToBase64(wiseHash(pwdArray[0].trim(), allCoefficients.length.toString() + 'jpeg'));
+            seed = encodeBase64(wiseHash(pwdArray[0].trim(), allCoefficients.length.toString() + 'jpeg', 32));
         if(pwdArray.length == 2) var pwd2 = pwdArray[1].trim();						//for when there is a second message
 
         shuffleCoefficients(seed,0);															//scramble image data to unpredictable locations
@@ -333,7 +333,7 @@ var decodeJPG = function(){
         var result = decodeFromCoefficients('jpeg',0);
 
         if(pwd2){													//extract hidden message if a second password is supplied
-            var seed2 = uint8ArrayToBase64(wiseHash(pwd2, result[2].toString() + 'jpeg'));
+            var seed2 = encodeBase64(wiseHash(pwd2, result[2].toString() + 'jpeg', 32));
             shuffleCoefficients(seed2,result[2] + 1);
             var result2 = decodeFromCoefficients('png',result[2] + 1)
         }
@@ -364,13 +364,13 @@ var encodeJPG = function(){
     var text = mainBox.textContent.trim();
     if(text.match('==')) text = text.split('==')[1].replace(/[-\s]/g,'').replace(/<(.*?)>/gi,"");
 
-    //bail out if this is not a PassLok string, etc.
+    //bail out if this is not a KyberLock string, etc.
     if(!text){
         imageMsg.textContent = 'There is nothing to hide';
         return
     }
     if(!isBase64(text.replace(/=/g,''))){
-        imageMsg.textContent = 'The text contains illegal characters for a PassLok string';
+        imageMsg.textContent = 'The text contains illegal characters for a KyberLock string';
         return
     }
     if(previewImg.src.length < 100){											//no image loaded
@@ -417,7 +417,7 @@ var modifyCoefficients = function(coefficients) {
     allCoefficients = removeZeros(rawCoefficients);							//remove zeros and store in global variable
 
     var pwdArray = imageBox.value.trim().replace(/\n/g,' ').split('|'),
-        seed = uint8ArrayToBase64(wiseHash(pwdArray[0].trim(), allCoefficients.length.toString() + 'jpeg'));
+        seed = encodeBase64(wiseHash(pwdArray[0].trim(), allCoefficients.length.toString() + 'jpeg', 32));
     if(pwdArray.length == 3){
         var pwd2 = pwdArray[1].trim(),
             msgBin2 = toBin(LZString.compressToBase64(pwdArray[2].trim())).concat(imgEOF);						//for when there is a second message
@@ -428,7 +428,7 @@ var modifyCoefficients = function(coefficients) {
     var lastIndex = encodeToCoefficients('jpeg', msgBin, 0);						//encoding step
 
     if(msgBin2){													//this is done only if there is a second message, to be added immediately after the main message
-        var seed2 = uint8ArrayToBase64(wiseHash(pwd2, lastIndex.toString() + 'jpeg'));
+        var seed2 = encodeBase64(wiseHash(pwd2, lastIndex.toString() + 'jpeg', 32));
 
         shuffleCoefficients(seed2,lastIndex + 1);							//shuffle only beyond the last index used
 
@@ -462,35 +462,31 @@ var modifyCoefficients = function(coefficients) {
 }
 
 //calculates a random-walk permutation, as seeded by "seed" and shuffles the global array "allCoefficients" accordingly. "permutation" is also global
-function shuffleCoefficients(seed, startIndex) {
-    // Create a new, local PRNG instance from the seed
-    const prng = new Math.seedrandom(seed);
+function shuffleCoefficients(seed,startIndex){
+    isaac.seed(seed);		//re-seed the PRNG
 
-    var length = allCoefficients.length,
+    var	length = allCoefficients.length,
         permutedCoeffs = new Array(length);
 
-    if (!startIndex) {
-        // Pass the new prng instance to our refactored function
-        permutation = randPerm(length, prng);
-    } else {
-        // Pass the new prng instance here as well
-        permutation2 = randPerm(length - startIndex, prng);
+    if(!startIndex){
+        permutation = randPerm(length)		//pseudo-random but repeatable array containing values 0 to length-1
+    }else{
+        permutation2 = randPerm(length - startIndex)		//the PRNG should be re-initialized before this operation
     }
 
-    // --- The rest of your function remains exactly the same ---
-    if (!startIndex) {
-        for (var i = 0; i < length; i++) {
-            permutedCoeffs[i] = allCoefficients[permutation[i]];
+    if(!startIndex){
+        for(var i = 0; i < length; i++){
+            permutedCoeffs[i] = allCoefficients[permutation[i]]
         }
-        for (var i = 0; i < length; i++) {
-            allCoefficients[i] = permutedCoeffs[i];
+        for(var i = 0; i < length; i++){
+            allCoefficients[i] = permutedCoeffs[i]
         }
-    } else {
-        for (var i = 0; i < length - startIndex; i++) {
-            permutedCoeffs[i] = allCoefficients[startIndex + permutation2[i]];
+    }else{
+        for(var i = 0; i < length - startIndex; i++){
+            permutedCoeffs[i] = allCoefficients[startIndex + permutation2[i]]
         }
-        for (var i = 0; i < length - startIndex; i++) {
-            allCoefficients[startIndex + i] = permutedCoeffs[i];
+        for(var i = 0; i < length - startIndex; i++){
+            allCoefficients[startIndex + i] = permutedCoeffs[i]
         }
     }
 }
@@ -530,13 +526,13 @@ function unShuffleCoefficients(startIndex){
     }
 }
 
-// A random permutation function that accepts a PRNG instance.
-function randPerm(n, prng) { // <-- Added 'prng' argument
+//obtain a random permutation using isaac re-seedable PRNG, for use in image steganography
+function randPerm(n) {
   var result = new Array(n);
   result[0] = 0;
 
   for(var i = 1; i < n; ++i) {
-    var idx = (prng() * (i + 1)) | 0; // <-- Use the passed-in prng function
+    var idx = (isaac.random() * (i + 1)) | 0			//here is the call to the isaac PRNG library
     if(idx < i) {
       result[i] = result[idx]
     }
