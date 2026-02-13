@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PassLok Human Encryption</title>
+<style>
+    :root {
+        --bg: #f4f6f8;
+        --card-bg: #ffffff;
+        --text: #1a202c;
+        --text-muted: #718096;
+        --primary: #2563eb;
+        --border: #e2e8f0;
+        --mono-font: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+        --sans-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        font-family: var(--sans-font);
+        background-color: var(--bg);
+        color: var(--text);
+        margin: 0;
+        padding: 20px;
+        line-height: 1.5;
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
+
+    .card {
+        background: var(--card-bg);
+        border-radius: 8px;
+        box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1);
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    h2 { margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--text); border-bottom: 2px solid var(--border); padding-bottom: 10px; }
+    h3 { margin: 0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+
+    .input-group { display: flex; flex-direction: column; gap: 6px; }
+    .input-group label { font-size: 0.9rem; font-weight: 500; }
+    
+    input[type="text"], textarea, select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-family: var(--mono-font);
+        font-size: 0.95rem;
+        transition: border-color 0.2s;
+    }
+    
+    input[type="text"]:focus, textarea:focus { outline: none; border-color: var(--primary); }
+
+    .radio-group { display: flex; gap: 20px; background: var(--bg); padding: 10px; border-radius: 6px; }
+    .radio-group label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
+    /* Tabula Visualization */
+    .tabula-container {
+        font-family: var(--mono-font);
+        font-size: 0.8rem;
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 15px;
+        border-radius: 6px;
+        overflow-x: auto;
+        white-space: pre;
+        line-height: 1.2;
+    }
+    
+    .hl-alpha { color: #63b3ed; font-weight: bold; }
+
+    /* Output Section */
+    .output-box {
+        background: var(--bg);
+        padding: 15px;
+        border-radius: 6px;
+        font-family: var(--mono-font);
+        word-break: break-all;
+        min-height: 60px;
+    }
+    
+    .output-label {
+        font-size: 0.75rem; 
+        color: var(--text-muted);
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 600;
+    }
+
+    /* Statistics Grid */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
+    }
+    
+    .stat-item {
+        background: var(--bg);
+        padding: 10px;
+        border-radius: 4px;
+        text-align: center;
+    }
+    .stat-label { font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 4px; }
+    .stat-value { font-weight: bold; font-size: 1rem; }
+    .stat-good { color: #10b981; }
+    .stat-bad { color: #ef4444; }
+
+    .full-width { grid-column: 1 / -1; }
+    .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Left Column: Controls & Input -->
+    <div class="card">
+        <h2>Configuration</h2>
+        
+        <div class="input-group">
+            <label>Mode</label>
+            <div class="radio-group">
+                <label><input type="radio" name="cryptModes" id="encryptMode" onclick="processPlain();" checked> Encrypt</label>
+                <label><input type="radio" name="cryptModes" id="decryptMode" onclick="processPlain();"> Decrypt</label>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="keyBox1">Key 1 (Row Scramble)</label>
+            <input type="text" id="keyBox1" placeholder="Enter primary key phrase..." onkeyup="processKeys();">
+        </div>
+
+        <div class="input-group">
+            <label for="keyBox2">Key 2 (Col Scramble)</label>
+            <input type="text" id="keyBox2" placeholder="Enter secondary key phrase..." onkeyup="processKeys();">
+        </div>
+
+        <div class="input-group">
+            <label for="seedBox">Key 3 / Seed (Mask)</label>
+            <input type="text" id="seedBox" placeholder="Enter seed phrase..." onkeyup="processKeys();">
+        </div>
+
+        <div class="input-group">
+            <label for="plainBox">Input Text</label>
+            <textarea id="plainBox" rows="6" placeholder="Paste text here..." onkeyup="processPlain();" onpaste="pasteText();"></textarea>
+        </div>
+    </div>
+
+    <!-- Right Column: Visuals & Output -->
+    <div class="card">
+        <h2>Visualization & Output</h2>
+
+        <h3>Tabula Recta</h3>
+        <div id="tabulaDisplay" class="tabula-container">
+            <!-- Filled by JS -->
+            Initializing...
+        </div>
+
+        <h3>Workings (Seed | Stream | Output)</h3>
+        <div id="procKeyBox" class="output-box" style="font-size: 0.85rem; overflow-x: auto;"></div>
+
+        <h3>Final Output</h3>
+        <div style="background-color: #e6fffa; border: 1px solid #b2f5ea; border-radius: 6px; padding: 15px;">
+            <span class="output-label">Codegroups (Formatted)</span>
+            <div id="codeGroupBox" style="font-family: var(--mono-font); margin-bottom: 15px; color: #000;"></div>
+            
+            <div id="rawOutputContainer">
+                <span class="output-label">Raw (No Spaces)</span>
+                <div id="rawOutputBox" style="font-family: var(--mono-font); color: #000; word-break: break-all;"></div>
+            </div>
+        </div>
+
+        <h3>Stream Analysis</h3>
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-item"><span class="stat-label">Chi-Squared (<34.4)</span><span class="stat-value" id="statChi">-</span></div>
+            <div class="stat-item"><span class="stat-label">Entropy (~4.7)</span><span class="stat-value" id="statEnt">-</span></div>
+            <div class="stat-item"><span class="stat-label">IC (~0.038)</span><span class="stat-value" id="statIC">-</span></div>
+            <div class="stat-item"><span class="stat-label">DW (~2.0)</span><span class="stat-value" id="statDW">-</span></div>
+        </div>
+        
+        <!-- Hidden logic elements required by original script structure -->
+        <div id="compKeyBox1" style="display:none;"></div>
+        <div id="compKeyBox2" style="display:none;"></div>
+        <div id="procPlainBox" style="display:none;"></div>
+        <div id="alphabet1" style="display:none;"></div>
+        <div id="alphabet2" style="display:none;"></div>
+        <div id="tabula" style="display:none;"></div>
+        <div id="cipherBox" style="display:none;"></div>
+        <div id="errorBox" style="display:none;"></div>
+    </div>
+</div>
+
+<script>
+/* ==========================================
+   CORE PASSLOK LOGIC
+   ========================================== */
+
+var base26 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    base26B1 = base26, base26B2 = base26,
+    base26BArray1 = new Array(26), base26BArray2 = new Array(26),
+    base26Binverse1 = new Array(26), base26Binverse2 = new Array(26),
+    seed, seedArray;
+var errors = []; 
+
+function updateTabulaDisplay() {
+    var d = document.getElementById('tabulaDisplay');
+    // Header padding adjusted to 4 spaces
+    var html = '<span class="hl-alpha">    ' + base26B2.split('').join(' ') + '</span>\n';
+    // Separator line padding adjusted to 4 spaces
+    html += '    ---------------------------------------------------\n';
+    for(var i=0; i<26; i++) {
+        var rowChar = base26B1.charAt(i);
+        var rowContent = "";
+        for(var j=0; j<26; j++) {
+            var shiftVal = (i + j) % 26;
+            rowContent += base26.charAt(shiftVal) + " ";
+        }
+        html += '<span class="hl-alpha">' + rowChar + '</span> | ' + rowContent + '\n';
+    }
+    d.innerHTML = html;
+}
+
+String.prototype.removeDiacritics = function() {
+    var diacritics = [ [/[\300-\306]/g, 'A'], [/[\340-\346]/g, 'a'], [/[\310-\313]/g, 'E'], [/[\350-\353]/g, 'e'], [/[\314-\317]/g, 'I'], [/[\354-\357]/g, 'i'], [/[\322-\330]/g, 'O'], [/[\362-\370]/g, 'o'], [/[\331-\334]/g, 'U'], [/[\371-\374]/g, 'u'], [/[\321]/g, 'N'], [/[\361]/g, 'n'], [/[\307]/g, 'C'], [/[\347]/g, 'c'], [/[\337]/g, 'ss'] ];
+    var s = this;
+    for (var i = 0; i < diacritics.length; i++) { s = s.replace(diacritics[i][0], diacritics[i][1]); }
+    return s;
+}
+
+function makeAlphabet(string, number){
+    string = string.removeDiacritics().toUpperCase().replace(/[^A-Z]/g,'');
+    var result = '', alpha = "ZYXWVUTSRQPONMLKJIHGFEDCBA",
+        stringLength = string.length;
+    for(var i = 0; i < stringLength; i++){
+        var letter = string.charAt(i);
+        if(result.indexOf(letter) == -1){
+            result += letter;
+            var reg = new RegExp(letter);
+            alpha = alpha.replace(reg,'')
+        }else{
+            var index = base26.indexOf(letter),
+                alphaLength = alpha.length;
+            for(var j = 0; j < alphaLength; j++){
+                if(base26.indexOf(alpha.charAt(j)) < index){
+                    result += alpha.charAt(j);
+                    alpha = alpha.slice(0,j) + alpha.slice(j+1,alphaLength);
+                    break
+                }else if(j == alphaLength - 1){
+                    result += alpha.charAt(0);
+                    alpha = alpha.slice(1)
+                }
+            }
+        }
+    }
+    if(number == 1){
+        if(result){base26B1 = result + alpha}else{base26B1 = base26};
+        for(var i = 0; i < 26; i++){
+            base26BArray1[i] = base26.indexOf(base26B1.charAt(i));
+            base26Binverse1[i] = base26B1.indexOf(base26.charAt(i))
+        }
+    }else if(number == 2){
+        if(result){base26B2 = result + alpha}else{base26B2 = base26};
+        for(var i = 0; i < 26; i++){
+            base26BArray2[i] = base26.indexOf(base26B2.charAt(i));
+            base26Binverse2[i] = base26B2.indexOf(base26.charAt(i))
+        }
+    }
+}
+
+function pasteText(){
+    setTimeout(function(){
+        var text = document.getElementById('plainBox').value.trim();
+        if(text.match('==')) text = text.split('==')[1];
+        if(!text.match(/[^A-Z\n]/)){
+            document.getElementById('decryptMode').checked = true; 
+        }else{
+            document.getElementById('encryptMode').checked = true;
+        }
+        processPlain()
+    },0)
+}
+
+function processPlain(){
+    var pBox = document.getElementById('plainBox');
+    if(pBox.value.trim() == '') return;
+    var text = pBox.value.replace(/[0-9]/g,function(match){return base26.charAt(match);}).trim();
+    text = text.toUpperCase().removeDiacritics();
+    
+    if(document.getElementById('encryptMode').checked){
+        text = text.replace(/Q/g,'K').replace(/[.;:!?{}_()\[\]…—–―\-\s\n]/g,'Q').replace(/Q+$/,'')
+    }else{
+        if(text.match('==')) text = text.split('==')[1]
+    }
+    document.getElementById('procPlainBox').innerHTML = text.replace(/[^A-Z]/g,'');
+    processKeys();
+}
+
+function processKeys(){
+    var key1 = document.getElementById('keyBox1').value.trim();
+    var key2 = document.getElementById('keyBox2').value.trim();
+    
+    if(key1){
+        key1 = key1.removeDiacritics().toUpperCase().replace(/[^A-Z]/g,'').trim();
+        var key1comp = compressKey(key1,25,1);
+        makeAlphabet(key1comp,1)
+    }else{ makeAlphabet('',1) }
+    
+    if(key2){
+        key2 = key2.removeDiacritics().toUpperCase().replace(/[^A-Z]/g,'').trim();
+        var key2comp = compressKey(key2,25,2);
+        makeAlphabet(key2comp,2)
+    }else{ makeAlphabet('',2) }
+    
+    updateTabulaDisplay();
+    
+    seed = document.getElementById('seedBox').value.trim();
+    if(seed){ seed = seed.removeDiacritics().toUpperCase().replace(/[^A-Z]/g,'').trim() }else{ seed = key1 }
+    var seedLength = seed.length;
+    seedArray = new Array(seedLength);
+    for(var i = 0; i < seedLength; i++){ seedArray[i] = base26.indexOf(seed.charAt(i)) }    
+    if(document.getElementById('procPlainBox').innerHTML == '') return;
+    makeCipher();
+}
+
+function compressKey(string,length,number){
+    var indexArray = new Array(string.length), outputArray = new Array(length), rows = Math.ceil(string.length / length), outStr = '';
+    for(var i = 0; i < string.length; i++) indexArray[i] = base26.indexOf(string.charAt(i));
+    for(var i = 0; i < length; i++){    
+        if(indexArray[i] != undefined) outputArray[i] = indexArray[i];
+        for(var j = 1; j < rows; j++){
+            if(indexArray[i + length * j] != undefined) outputArray[i] = (26 - outputArray[i] + indexArray[i + length * j]) % 26
+        }
+    }
+    for(var i = 0; i < length; i++) if(outputArray[i] != undefined) outStr += base26.charAt(outputArray[i]);
+    return outStr
+}
+
+function makeCipher(){
+    var text = document.getElementById('procPlainBox').innerHTML.trim();
+    if(!text) return;
+    var seedLength = seedArray.length, seedArray2 = new Array(seedLength);    
+    var isEncrypt = document.getElementById('encryptMode').checked;
+    var rawOutCont = document.getElementById('rawOutputContainer');
+
+    if(isEncrypt){
+        var dummySeed = '', newIndex;
+        for(var i = 0; i < seedLength; i++){
+            newIndex = Math.floor(Math.random()*26);
+            seedArray2[i] = newIndex;            
+            dummySeed += base26.charAt(newIndex)
+        }
+        text = dummySeed + text
+    }        
+    var length = text.length, textArray = new Array(length), cipherArray = new Array(length), spacer = ' ';
+    while(spacer.length <= seedLength) spacer += ' ';
+    for(var i = 0; i < length; i++){ textArray[i] = base26.indexOf(text.charAt(i)) }
+    
+    if(!isEncrypt){
+        for(var i = 0; i < seedLength; i++) seedArray2[i] = base26BArray2[(26 - base26Binverse1[textArray[i]] + seedArray[i]) % 26]
+    }
+    
+    var outputTable = text.slice(0,seedLength) + ' ' + text.slice(seedLength), streamChars = new Array(length - seedLength);
+    var stream = makeStream(length - seedLength,seedArray2);
+    for(var j = 0; j < length - seedLength; j++) streamChars[j] = base26.charAt(stream[j]);
+    
+    textArray = encryptDecrypt(textArray,seedArray.concat(stream), isEncrypt);
+    for(var j = 0; j < length; j++) cipherArray[j] = base26.charAt(textArray[j]);
+    
+    var outString = cipherArray.join(''), streamString = streamChars.join('');
+    outputTable += '<br>' + seed + ' ' + streamString + '<br>' + outString.slice(0,seedLength) + ' ' + outString.slice(seedLength);
+    
+    document.getElementById('procKeyBox').innerHTML = '<pre>' + outputTable + '</pre>';
+    
+    var cipherText = cipherArray[0] ? cipherArray.join('') : text;
+    if(isEncrypt){
+        for(var j = 0; j < length; j++) cipherArray[j] = base26.charAt(textArray[j]);
+        cipherText = cipherArray.join('');
+    }
+    keyStreamQuality26(textArray);
+    
+    if(!isEncrypt) cipherText = cipherText.slice(seedLength);
+    
+    // Fill formatted box
+    if(isEncrypt){
+        rawOutCont.classList.remove('hidden');
+        document.getElementById('codeGroupBox').textContent = cipherText.match(/.{1,5}/g).join(' ');
+        document.getElementById('rawOutputBox').textContent = cipherText;
+    }else{
+        rawOutCont.classList.add('hidden');
+        var decoded = cipherText.replace(/QQ/g,'. ').replace(/Q/g,' ').replace(/KU([AEIO])/g,'QU$1');
+        document.getElementById('codeGroupBox').textContent = decoded;
+        document.getElementById('rawOutputBox').textContent = "";
+    }
+}
+
+function makeStream(length,seedArray2){
+    var seedLength = seedArray.length, output = new Array(length + seedLength);
+    for(var i = 0; i < seedLength; i++){ output[i] = seedArray2[i] }
+    for(var i = seedLength; i < length + seedLength; i++){
+        output[i] = base26BArray1[(26 - base26Binverse2[output[i-seedLength]] + output[i-seedLength+1]) % 26];
+    }
+    return output.slice(seedLength)
+}
+
+function encryptDecrypt(array,stream,isEncrypt){
+    var length = array.length, output = new Array(length);
+    for(var i = 0; i < length; i++) output[i] = isEncrypt ? base26BArray1[(26 - base26Binverse2[array[i]] + stream[i]) % 26] : base26BArray2[(26 - base26Binverse1[array[i]] + stream[i]) % 26];
+    return output
+}
+
+/* --- Stats Logic --- */
+var freqArray = [];
+function keyStreamQuality26(array){
+    frequencies(array,26);
+    var chiNumber = chiSquared(array,26), chiResult = chiNumber.toString().slice(0,6);
+    var dwNumber = durbinWatson(array,26), dwResult = dwNumber.toString().slice(0,6);
+    var entropyNumber = shannonEntropy(array,26), entropyResult = entropyNumber.toString().slice(0,6);
+    var ICnumber = coincidenceIndex(array,26), ICresult = ICnumber.toString().slice(0,6);
+    
+    updateStat('statChi', chiResult, chiNumber <= 34.4);
+    updateStat('statDW', dwResult, Math.abs(dwNumber - 2) < 0.1);
+    updateStat('statEnt', entropyResult, entropyNumber >= 4.6);
+    updateStat('statIC', ICresult, ICnumber < 0.06); 
+}
+
+function updateStat(id, value, isGood) {
+    var el = document.getElementById(id);
+    el.innerText = value;
+    el.className = 'stat-value ' + (isGood ? 'stat-good' : 'stat-bad');
+}
+
+function frequencies(array,base){ var length = array.length; freqArray = new Array(base).fill(0); for(var i = 0; i < length; i++) freqArray[array[i]]++ }
+function chiSquared(array,base){ var result = 0, length = array.length, expected = length / base, operand; for(var i = 0; i < base; i++){ operand = freqArray[i] - expected; result += (operand * operand) / expected } return result }
+function durbinWatson(array,base){ var num = 0, denom = 0, length = array.length, operand, subtrand = (base - 1) / 2; for(var i = 1; i < length; i++){ operand = array[i] - array[i-1]; num += operand * operand; operand = array[i] - subtrand; denom += operand * operand } return denom == 0 ? -1 : num/denom }
+function shannonEntropy(array,base){ var length = array.length, entropy = 0, frequency; for(var i = 0; i < base; i++){ if(freqArray[i] != 0){ frequency = freqArray[i] / length; entropy -= frequency * (Math.log(frequency) / Math.LN2); } } return entropy }
+function coincidenceIndex(array,base){ var length = array.length, result = 0; for(var i = 0; i < base; i++){ result += freqArray[i]*(freqArray[i] - 1) } return result / (length * (length - 1)) }
+
+window.onload = function() { processKeys(); }
+</script>
+
+</body>
+</html>
