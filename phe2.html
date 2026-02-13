@@ -45,6 +45,7 @@
         display: flex;
         flex-direction: column;
         gap: 16px;
+        min-width: 0; /* Critical for grid child overflow */
     }
 
     h2 { margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--text); border-bottom: 2px solid var(--border); padding-bottom: 10px; }
@@ -89,10 +90,29 @@
         padding: 15px;
         border-radius: 6px;
         font-family: var(--mono-font);
-        word-break: break-all;
+        
+        /* FIX: Ensure text wraps or scrolls instead of expanding the div */
+        white-space: pre-wrap;       /* Wraps text but preserves manual newlines */
+        word-break: break-all;       /* Forces break on long strings without spaces */
+        overflow-wrap: break-word;   /* Standard wrap behavior */
+        max-width: 100%;             /* Restricts width to container */
+        
         min-height: 60px;
     }
     
+    /* Special handling for the Workings box which usually needs horizontal scrolling */
+    .workings-box {
+        background: var(--bg);
+        padding: 15px;
+        border-radius: 6px;
+        font-family: var(--mono-font);
+        font-size: 0.85rem;
+        
+        white-space: pre;            /* Keep on one line (mostly) */
+        overflow-x: auto;            /* Allow horizontal scroll */
+        max-width: 100%;
+    }
+
     .output-label {
         font-size: 0.75rem; 
         color: var(--text-muted);
@@ -170,16 +190,17 @@
         </div>
 
         <h3>Workings (Seed | Stream | Output)</h3>
-        <div id="procKeyBox" class="output-box" style="font-size: 0.85rem; overflow-x: auto;"></div>
+        <div id="procKeyBox" class="workings-box"></div>
 
         <h3>Final Output</h3>
         <div style="background-color: #e6fffa; border: 1px solid #b2f5ea; border-radius: 6px; padding: 15px;">
             <span class="output-label">Codegroups (Formatted)</span>
-            <div id="codeGroupBox" style="font-family: var(--mono-font); margin-bottom: 15px; color: #000;"></div>
+            <div id="codeGroupBox" class="output-box" style="background-color: transparent; padding: 0; color: #000;"></div>
             
-            <div id="rawOutputContainer">
+            <div id="rawOutputContainer" class="hidden">
+                <br>
                 <span class="output-label">Raw (No Spaces)</span>
-                <div id="rawOutputBox" style="font-family: var(--mono-font); color: #000; word-break: break-all;"></div>
+                <div id="rawOutputBox" class="output-box" style="background-color: transparent; padding: 0; color: #000;"></div>
             </div>
         </div>
 
