@@ -37,6 +37,7 @@ body {
 	text-decoration: none;
 	width: 100%;
 	-webkit-appearance: none;
+    appearance: none;
 	box-sizing: border-box;
 	-webkit-box-sizing: border-box;
 	-moz-box-sizing: border-box;
@@ -48,8 +49,26 @@ body {
 	border: 1px solid #D3D3D3;
 	overflow: auto;
 }
+.cssbutton {
+	-webkit-border-radius: 10px;
+	-moz-border-radius: 10px;
+	border-radius: 10px;
+	font-family: Arial;
+	font-size: 18px;
+	padding: 12px;
+	text-decoration: none;
+	border: 0px;
+	color: #555555;
+	background: #e6e6e6;
+}
+.cssbutton:hover {
+	text-decoration: none;
+	cursor: pointer;
+	background: #cfcfcf;
+}
 input[type=radio] {
 	/* Larger radio buttons */
+    transform: scale(1.7);
 	-ms-transform: scale(1.7); /* IE */
 	-moz-transform: scale(1.7); /* FF */
 	-webkit-transform: scale(1.7); /* Safari and Chrome */
@@ -330,7 +349,7 @@ function makeCipher(){
 	}
 }
 
-//just for base26, uses base26BArray, base26Binverse
+//just for base26, uses base26BArray, base26Binverse. Error correction by introducing forced errors
 function makeStream(length,seedArray2){
 	var	seedLength = seedArray.length,
 		output = new Array(length + seedLength);
@@ -338,7 +357,22 @@ function makeStream(length,seedArray2){
 		output[i] = seedArray2[i]
 	}
 	for(var i = seedLength; i < length + seedLength; i++){
-		output[i] = base26BArray1[(26 - base26Binverse2[output[i-seedLength]] + output[i-seedLength+1]) % 26]
+		output[i] = base26BArray1[(26 - base26Binverse2[output[i-seedLength]] + output[i-seedLength+1]) % 26];
+/*
+		//encryption errors introduced here			
+        if(encryptMode.checked){
+            //one in 100 chance of random error
+            if(Math.random()*100 < 1) output[i] = Math.floor(Math.random()*26)
+        }
+*/
+        //introduce errors on decryption
+        if(errors.length != 0 && decryptMode.checked){      //errors are stored in global array errors
+            for(var j = 0; j < errors.length; j++){
+                if(i == errors[j][0]){
+                    output[i] = errors[j][1]
+                }
+            }
+        }
 	}
 	return output.slice(seedLength)
 }
@@ -348,6 +382,34 @@ function encryptDecrypt(array,stream,isEncrypt){
 		output = new Array(length);
 	for(var i = 0; i < length; i++) output[i] = isEncrypt ? base26BArray1[(26 - base26Binverse2[array[i]] + stream[i]) % 26] : base26BArray2[(26 - base26Binverse1[array[i]] + stream[i]) % 26];
 	return output
+}
+
+var errors = [],            //array containing added errors as pairs: [index, value]
+    newError = true;        //set to true when working on a new error
+
+//adds one to the value of the current error
+function incrementError(){
+    if(newError){                           //append pair, initialized as zero
+        errors.push([window.getSelection().baseOffset + seedArray.length,0]);
+        newError = false
+    }else{                                  //increment value by one, mod 26
+        errors[errors.length-1][1] = (errors[errors.length-1][1] + 1) % 26
+    }
+    errorBox.textContent = errors;
+    makeCipher()
+}
+
+//saves current error and prepares for the next
+function saveError(){
+    newError = true
+}
+
+//removes current error and sets to replace it
+function deleteError(){
+    errors = errors.slice(0,errors.length - 1);
+    newError = true;
+    errorBox.textContent = errors;
+    makeCipher()
 }
 
 //displays quality of the keystream. Performs five tests: single digit Chi-squared, Durbin-Watson (both compared to the uniform distribution), Shannon's entropy, runs test, and Chi-squared independence test
@@ -502,6 +564,22 @@ function coincidenceIndex(array,base){
 
 <body>
 <h1 align="center">PassLok Human Encryption</h1>
+<p align="center">&#169; Francisco Ruiz, 2023</p>
+<p>This document demonstrates the Human encryption mode built into PassLok Privacy and URSA, which is designed to be performed by hand if necessary. PassLok Privacy is available from <a href="https://passlok.com/app" target = "_blank">https://passlok.com/app</a>, URSA from <a href="https://passlok.com/ursa" target="_blank">https://passlok.com/ursa</a>. The user starts by selecting three alphabetical keys: the first two are used for substitutions, the third as a mask for a random seed. The process begins by concentrating the entropy in the first two keys by means of serpentine operations on a Tabula Recta. Then a pseudo-random keystream is produced starting from a randomly chosen alphabetical seed of equal length as the third key, by means of a lagged Fibonacci generator that uses the Tabula Recta with headers modified according to the first two keys. Finally the processed plaintext (the method uses a trick to preserve spaces) with the random seed prepended to it is combined with the keystream to produce the ciphertext. To decrypt, the first two keys are compressed and then the random seed is extracted from the ciphertext, which allows us to reproduce the same pseudo-random keystream. This is then combined with the ciphertext to recreate the plaintext (and then the trick is reversed to get the spaces back).</p>
+<p>The steps to encrypt or decrypt in more detail:</p>
+<p>First take keys 1 and 2 with spaces, puctuation, and diacritics removed, and write each of them, one letter per cell, in a table containing 25 colums. When the first row is filled, continue filling the second, and so on until all letters have been written.  Then do the following for each resulting column: look the first letter on the top of a straight Tabula Recta (alphabets on the edges are not mixed), then down that column until you find the second letter(if there is one), then left or right until you find the third letter (if there is one), and so on until the last letter is found, and then again perpendicularly to read of the result at top, bottom, or one of the sides. Write down the result for each column, and then you get the compressed key.</p>
+<p>Then we generate a scrambled alphabet for each compressed key. The process is simple: 1, take the compressed key and write down new letters in the order they appear; if a letter in the text key has already been written, write instead the first letter before it in the alphabet that is still available (wrap around to the end if needed); 2, then write the rest of the alphabet in reverse order. Place alphabet 1 on the left side and right sides of the Tabula Recta, alphabet 2 on the top and bottom. From now on, we will look up letters on these rather than of the original headers.</p>
+<p>After the plaintext or ciphertext is processed —all letters are converted to capitals; accented letters are replaced by their non-accented versions; numbers in plaintext are converted to letters as in 0=A,1=B,...9=J, but are not converted back, Q's are turned into K's, and then spaces and punctuation (except commas, quotes, and suchlike) are turned into Q's— we do the main encrypt/decrypt process, which goes as explained below:</p>
+<ol>
+  <li>If encrypting, write a string of random letters as long as key 3, which will become the random seed, and then the processed plaintext immediately to its right. When decrypting, just write the ciphertext.</li>
+  <li>Take key 3, remove all spaces, punctuation, and diacritics, and write it at the start of the line below the plaintext or ciphertext.</li>
+  <li>If decrypting, extract the random seed from the ciphertext by following the process in step 5 just for those few letters, bearing in mind that you look up the top row letters on the left or right of the Tabula Recta, and write into the bottom row the letter found at top or bottom of the table. Skip this step if encrypting.</li>
+  <li>Extend the seed (start of the first row if encrypting, of the third row if decrypting) into a keystream so all spaces in the second row are filled, this way: Look up the first keystream letter still available <em>at the top or bottom</em> of the Tabula Recta, then down or up until you find the letter that follows it in the keystream, then go sideways to read a letter on the <em>right or left alphabet</em>, which you will write in the next available position on the second row. Mark the first keystream letter you looked up, so next time you start with the next letter. Notice that when encrypting you start taking letters from the top row, but when you run out of random seed you continue taking them from the second row, never from the plaintext itself.</li>
+  <li>Now when encrypting do the following for each pair of letters consisting of a top row letter and the letter right below it: Look up the plaintext letter <em>at the top or bottom</em> of the Tabula Recta, then go down or up until you find the letter below, then sideways to read a letter on the <em>right or left alphabet</em>, which you will write below the pair of letters you involved in this operation, forming the ciphertext. When decrypting you do the same but with the alphabets reversed, that is, you look up the top row letter on the left or right, and read off the result at top or bottom.</li>
+</ol>
+<p>If encrypting, you are done at this point. If decrypting, you now need to undo the plaintext processing. That is: replace every Q with a space, or a period and a space if there are two Q's in a row; replace every instance of &quot;KU&quot; followed by a vowel with &quot;QU&quot;. The result won't be exactly the original plaintext, but it will be quite readable.</p>
+<h3>Tabula Recta</h3>
+<p>Key compression is done using this table before the alphabets at the edges are mixed (you can use the first row and column for this purpose, even after those change). The rest of the operations are done using the mixed alphabets deriving from the keys, which are added to this table automatically. Here's a Tabula Recta as a graphic ready to print, on gridded paper: <a href="https://passlok.com/human/tabula.png" target="_blank">https://passlok.com/human/tabula.png</a></p>
 <div align="center">
   <pre id="alphabet1">
   A B C D E F G H I J K L M N O P Q R S T U V W X Y Z  </pre>
@@ -545,11 +623,13 @@ Z | Z A B C D E F G H I J K L M N O P Q R S T U V W X Y | Z
 <p>If you want to use for key 3 a string different from key 1, write it in this box, otherwise key 1 will be used. This key should be at least three characters long.</p>
 <h3>Key 3</h3>
 <textarea name="seedBox" class="cssbox" id="seedBox" style="background-color:#E4F7FF;" title="Enter the seed key, or leave blank to use the main key again" onKeyUp="processKeys();"></textarea>
-
+<p>The first step is to compress keys 1 and 2 by writing them into rows of 25 letters and performing a serpentine operation, as described above, on each resulting column. The following two boxes show the operations involved in compressing both keys, plus the resulting mixed alphabets:</p>
 <h3>Compressed Key 1 -&gt; Mixed Alphabet 1</h3>
 <div id="compKeyBox1" class="cssbox" onKeyUp="" onPaste="" style="font-family:monospace;font-size:large;"></div>
 <h3>Compressed Key 2 -&gt; Mixed Alphabet 2</h3>
 <div id="compKeyBox2" class="cssbox" onKeyUp="" onPaste="" style="font-family:monospace;font-size:large;"></div>
+<p>We make scrambled alphabets out of keys 1 and 2, which are then placed at the top, bottom, and sides of the Tabula Recta, by doing the following with each compressed key: take each key and write the different letters of the alphabet in the order they appear in the compressed key, if a letter has been used already, write instead the immediately preceding letter in the normal alphabet not yet chosen; if there are letters that did not appear in the key, write them now in reverse alphabetical order. The resulting alphabets are displayed on the bottom rows of the preceding work tables, and directly on the Tabula Recta.</p>
+<p>Since the process is somewhat different for encryption and decryption, we have to tell the program what we want to do:</p>
 <p>&nbsp;&nbsp;
   <input type="radio" name="cryptModes" id="encryptMode" onClick="processPlain();" title='encrypt' checked/>
   &nbsp; Encrypt&nbsp;&nbsp;
@@ -559,12 +639,12 @@ Z | Z A B C D E F G H I J K L M N O P Q R S T U V W X Y | Z
 <h2>Step 2. Plaintext preparation</h2>
 <h3>Plaintext / Ciphertext</h3>
   <textarea name="plainBox" class="cssbox" id="plainBox" style="background-color:#E4F7FF;height:150px;" title="Enter your plaintext (or ciphertext, when decrypting) here" onKeyUp="processPlain();" onPaste="pasteText();"></textarea>
-Converted to the following after everything is turned into uppercase, diacritics are removed and, when encrypting, Q's are replaced by K's and spaces and selected punctuation are replaced by Q's:
+Which is converted to the following after everything is turned into uppercase, diacritics are removed and, when encrypting, Q's are replaced by K's and spaces and selected punctuation are replaced by Q's:
 <h3>Processed Plaintext / Ciphertext</h3>
-<div id="procPlainBox" class="cssbox" onKeyUp="" onPaste="" style=""></div>
+<div id="procPlainBox" class="cssbox"></div>
 <p>&nbsp;</p>
 <h2>Step 3. Encryption / Decryption</h2>
-<p>The top row is the input, the middle row the keystream, the bottom row the output.</p>
+<p>In order to obtain the ciphertext we generate the table below, following the instructions at the top of this page. The top row is the input, the middle row the keystream, the bottom row the output.</p>
 <h3>Work table</h3>
 <div id="procKeyBox" class="cssbox" onKeyUp="" onPaste="" style="font-family:monospace;font-size:large;"></div>
 <p><span id="qualityMsg">Information about output randomness will appear here</span></p>
@@ -573,7 +653,14 @@ Converted to the following after everything is turned into uppercase, diacritics
 <p>The raw ciphertext (plaintext when decrypting) was the bottom row of the work table and is shown in the first box below, but when decrypting we now replace every &quot;QQ&quot; with a period plus a space, every single &quot;Q&quot; with a single space, and every instance of &quot;KU&quot; followed by a vowel with &quot;QU&quot; resulting in the plaintext in the bottom box. When encrypting, the bottom box contains the ciphertext split into codegroups of five characters each.</p>
 <h3>Raw Ciphertext / Plaintext</h3>
 <div id="cipherBox" class="cssbox" style="background-color:#DCF2D1;"></div>
-<h3>Formatted output</h3>
+<h3>Formatted Output</h3>
 <div id="codeGroupBox" class="cssbox" style="background-color:#DCF2D1;font-family:monospace;font-size:large;"></div>
+<h3>Bonus: error correction</h3>
+<p>It is rather easy to make a mistake when encrypting a text by hand, which will cause problems for decryption. There isn't much that can be done if the error is made when making the scrambled alphabets for the Tabula Recta or encrypting the random seed, because this would be equivalent to using a different set of keys from what the recipients have, and this algorithm doesn't give much of a clue when the keys are close to the correct ones but not quite. On the other hand, it is very easy to spot the mistake and fix it on decryption if the error was made in the final operation where the keystream and the plaintext are combined, because then an error in one letter affects only one letter in the ciphertext, and the rest can be decrypted normally. The interesting case is when a mistake is made while processing the keystream. Then almost all the keystream after the error will be affected, resulting in gibberish in the decrypted plaintext.</p>
+<p>The buttons below help with this case by intentionally adding errors into the keystream during decryption, while watching the effect on the decrypted plaintext. Usage: 1. Mark the spot in the Formatted Output box where the error is to be introduced by selecting the first wrong character or simply clicking in front of it. 2. Press the Next button repeatedly until the decrypted text after that spot makes sense (each press increments the error added to that character by one). 3. If there appears to be more errors after that, click the Save button to save progress and repeat for the next error, starting from step 1. 4. If the plaintext after the marked spot is not fixed after all possible error values have been tried with the Next button (26 times), chances are the spot chosen for the previous fix was not correct; click the Back button and try doing it again. The box at the bottom displays the errors being introduced.</p>
+<button id="nextBtn" class="cssbutton" onClick="incrementError();">Next</button>
+<button id="saveBtn" class="cssbutton" onClick="saveError();">Save</button>
+<button id="backBtn" class="cssbutton" onClick="deleteError();">Back</button>
+<div id="errorBox" class="cssbox" style="background-color:#DCF2D1;"></div>
 </body>
 </html>
